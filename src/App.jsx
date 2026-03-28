@@ -29,16 +29,16 @@ const PLAYER_META = {
 };
 
 const IPL_TEAMS = {
-  MI:   { name: "Mumbai Indians",               color: "#005DA0", accent: "#D4AF37" },
-  CSK:  { name: "Chennai Super Kings",           color: "#F9CD05", accent: "#0081E9" },
-  RCB:  { name: "Royal Challengers Bengaluru",   color: "#C8102E", accent: "#FFD700" },
-  KKR:  { name: "Kolkata Knight Riders",         color: "#3A225D", accent: "#F4C430" },
-  DC:   { name: "Delhi Capitals",                color: "#004C93", accent: "#EF1C25" },
-  SRH:  { name: "Sunrisers Hyderabad",           color: "#FF6600", accent: "#000000" },
-  RR:   { name: "Rajasthan Royals",              color: "#E8116E", accent: "#254AA5" },
-  PBKS: { name: "Punjab Kings",                  color: "#C8122A", accent: "#DCDDDF" },
-  LSG:  { name: "Lucknow Super Giants",          color: "#A72B2A", accent: "#FBCA05" },
-  GT:   { name: "Gujarat Titans",                color: "#1D4E8F", accent: "#A0C0F0" },
+  MI:   { name: "Mumbai Indians",               color: "#005DA0", accent: "#D4AF37", logo: "https://scores.iplt20.com/ipl/teamlogos/MI.png" },
+  CSK:  { name: "Chennai Super Kings",           color: "#F9CD05", accent: "#0081E9", logo: "https://scores.iplt20.com/ipl/teamlogos/CSK.png" },
+  RCB:  { name: "Royal Challengers Bengaluru",   color: "#C8102E", accent: "#FFD700", logo: "https://scores.iplt20.com/ipl/teamlogos/RCB.png" },
+  KKR:  { name: "Kolkata Knight Riders",         color: "#3A225D", accent: "#F4C430", logo: "https://scores.iplt20.com/ipl/teamlogos/KKR.png" },
+  DC:   { name: "Delhi Capitals",                color: "#004C93", accent: "#EF1C25", logo: "https://scores.iplt20.com/ipl/teamlogos/DC.png" },
+  SRH:  { name: "Sunrisers Hyderabad",           color: "#FF6600", accent: "#000000", logo: "https://scores.iplt20.com/ipl/teamlogos/SRH.png" },
+  RR:   { name: "Rajasthan Royals",              color: "#E8116E", accent: "#254AA5", logo: "https://scores.iplt20.com/ipl/teamlogos/RR.png" },
+  PBKS: { name: "Punjab Kings",                  color: "#C8122A", accent: "#DCDDDF", logo: "https://scores.iplt20.com/ipl/teamlogos/PBKS.png" },
+  LSG:  { name: "Lucknow Super Giants",          color: "#A72B2A", accent: "#FBCA05", logo: "https://scores.iplt20.com/ipl/teamlogos/LSG.png" },
+  GT:   { name: "Gujarat Titans",                color: "#1D4E8F", accent: "#A0C0F0", logo: "https://scores.iplt20.com/ipl/teamlogos/GT.png" },
 };
 
 // IPL 2026 season ID - we search for it dynamically
@@ -142,6 +142,14 @@ function fmtTime(dateStr) {
 // ─── Team Badge ────────────────────────────────────────────────────
 function TeamBadge({ short, size = 40 }) {
   const t = IPL_TEAMS[short];
+  const [imgError, setImgError] = useState(false);
+  if (t?.logo && !imgError) {
+    return (
+      <div style={{ width:size, height:size, borderRadius:"50%", background:t.color, border:`2px solid ${t.accent}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, overflow:"hidden" }}>
+        <img src={t.logo} alt={short} onError={()=>setImgError(true)} style={{ width:"85%", height:"85%", objectFit:"contain" }} />
+      </div>
+    );
+  }
   return (
     <div style={{
       width: size, height: size, borderRadius: "50%",
@@ -648,7 +656,7 @@ export default function App() {
               {[1, 0, 2].map(idx => {
                 const player = ranked[idx];
                 const pos = idx + 1;
-                const podiumH = [130, 165, 105][idx];
+                const podiumH = [140, 170, 110][idx === 0 ? 1 : idx === 1 ? 0 : 2];
                 const crown = ["🥇", "🥈", "🥉"][idx];
                 const meta = PLAYER_META[player];
                 return (
@@ -774,16 +782,16 @@ export default function App() {
 
                   {/* Teams */}
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-                    <div style={{ flex: 1, textAlign: "center" }}>
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
                       <TeamBadge short={match.home} size={48} />
                       <div style={{ fontSize: 11, fontWeight: 800, marginTop: 6, color: IPL_TEAMS[match.home]?.color || "#fff" }}>{match.home}</div>
-                      <div style={{ fontSize: 9, color: "#4A6080" }}>{IPL_TEAMS[match.home]?.name || match.home}</div>
+                      <div style={{ fontSize: 9, color: "#4A6080", textAlign: "center" }}>{IPL_TEAMS[match.home]?.name || match.home}</div>
                     </div>
                     <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 18, fontWeight: 800, color: "#FF6B2B" }}>VS</div>
-                    <div style={{ flex: 1, textAlign: "center" }}>
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
                       <TeamBadge short={match.away} size={48} />
                       <div style={{ fontSize: 11, fontWeight: 800, marginTop: 6, color: IPL_TEAMS[match.away]?.color || "#fff" }}>{match.away}</div>
-                      <div style={{ fontSize: 9, color: "#4A6080" }}>{IPL_TEAMS[match.away]?.name || match.away}</div>
+                      <div style={{ fontSize: 9, color: "#4A6080", textAlign: "center" }}>{IPL_TEAMS[match.away]?.name || match.away}</div>
                     </div>
                   </div>
 
@@ -851,14 +859,20 @@ export default function App() {
                     </span>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <TeamBadge short={match.home} size={36} />
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                      <TeamBadge short={match.home} size={36} />
+                      <div style={{ fontSize: 9, fontWeight: 700, color: IPL_TEAMS[match.home]?.color || "#fff" }}>{match.home}</div>
+                    </div>
                     <div style={{ flex: 1, textAlign: "center" }}>
                       <div style={{ fontSize: 12, fontWeight: 800, color: winner ? "#FFD700" : "#E2E8F8" }}>
                         {status === "completed" ? `${winner} won` : status === "live" ? match.liveStatus || "In Progress" : `${match.time}`}
                       </div>
                       <div style={{ fontSize: 9, color: "#2A4060", marginTop: 2 }}>🏟 {match.venue.split(",")[0]}</div>
                     </div>
-                    <TeamBadge short={match.away} size={36} />
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                      <TeamBadge short={match.away} size={36} />
+                      <div style={{ fontSize: 9, fontWeight: 700, color: IPL_TEAMS[match.away]?.color || "#fff" }}>{match.away}</div>
+                    </div>
                   </div>
                   {/* all picks for schedule view */}
                   <div style={{ marginTop: 10, display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -1215,4 +1229,4 @@ export default function App() {
       </div>
     </div>
   );
-}
+     }
