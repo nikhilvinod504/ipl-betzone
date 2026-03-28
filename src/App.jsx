@@ -386,7 +386,7 @@ export default function App() {
             <div style={{display:"flex",justifyContent:"center",alignItems:"flex-end",gap:10,marginBottom:24}}>
               {[1,0,2].map(idx => {
                 const player = ranked[idx];
-                const podiumH = [130,165,105][idx];
+                const podiumH = [140, 170, 110][idx === 0 ? 1 : idx === 1 ? 0 : 2];
                 const crown = ["🥇","🥈","🥉"][idx];
                 const meta = PLAYER_META[player];
                 return (
