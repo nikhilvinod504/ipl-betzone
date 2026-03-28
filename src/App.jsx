@@ -1199,7 +1199,13 @@ export default function App() {
                   {["played","won","lost"].map(field => (
                     <input key={field} type="number" value={row[field]}
                       onChange={e => {
-                        const updated = iplTable.map((r,j) => j===i ? {...r, [field]: parseInt(e.target.value)||0} : r);
+                        const val = parseInt(e.target.value)||0;
+                        const updated = iplTable.map((r,j) => {
+                          if (j !== i) return r;
+                          const newRow = {...r, [field]: val};
+                          newRow.pts = newRow.won * 2;
+                          return newRow;
+                        });
                         setIplTable(updated);
                         set(ref(db,"iplTable"), updated);
                       }}
@@ -1229,4 +1235,4 @@ export default function App() {
       </div>
     </div>
   );
-     }
+}
