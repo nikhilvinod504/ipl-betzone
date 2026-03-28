@@ -185,6 +185,8 @@ function Toast({ msg, type }) {
 export default function App() {
   const [tab, setTab] = useState("leaderboard");
   const [selectedPlayer, setSelectedPlayer] = useState(PLAYERS[0]);
+  const [revealedPicks, setRevealedPicks] = useState({}); // tracks which match picks are revealed
+  const [expandedMatch, setExpandedMatch] = useState(null); // tracks which match is expanded for betting
   const [toast, setToast] = useState(null);
 
   // Firebase state
@@ -732,27 +734,57 @@ export default function App() {
               const myBet = bets[betKey];
               const myToss = tossGuesses[betKey];
               const meta = PLAYER_META[selectedPlayer];
+              const isExpanded = expandedMatch === match.id;
+              const hasBet = !!myBet;
+              const hasToss = !!myToss;
               return (
-                <div key={match.id} style={S.card()}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
-                    <span style={{ fontSize: 11, color: "#4A6080" }}>📅 {match.date} · {match.time}</span>
-                    <span style={{ fontSize: 10, color: "#2A4060" }}>🏟 {match.venue.split(",")[0]}</span>
+                <div key={match.id} style={{ ...S.card(isExpanded ? meta.color + "44" : "#1A3050"), cursor: "pointer" }}>
+
+                  {/* Collapsed header — always visible, tap to expand */}
+                  <div onClick={() => setExpandedMatch(isExpanded ? null : match.id)}
+                    style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <TeamBadge short={match.home} size={32} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: "#E2E8F8" }}>{match.home}</span>
+                        <span style={{ fontSize: 10, color: "#FF6B2B", fontWeight: 700 }}>VS</span>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: "#E2E8F8" }}>{match.away}</span>
+                      </div>
+                      <div style={{ fontSize: 10, color: "#4A6080", marginTop: 2 }}>📅 {match.date} · {match.time}</div>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+                      {/* Show bet status indicators */}
+                      <div style={{ display: "flex", gap: 4 }}>
+                        <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 10, background: hasBet ? meta.color + "33" : "#1A3050", color: hasBet ? meta.color : "#2A4060", fontWeight: 700 }}>
+                          🏆 {hasBet ? myBet : "—"}
+                        </span>
+                        <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 10, background: hasToss ? "#FFD70022" : "#1A3050", color: hasToss ? "#FFD700" : "#2A4060", fontWeight: 700 }}>
+                          🪙 {hasToss ? myToss : "—"}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: 14, color: "#4A6080" }}>{isExpanded ? "▲" : "▼"}</span>
+                    </div>
+                    <TeamBadge short={match.away} size={32} />
                   </div>
 
-                  {/* Teams */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-                    <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
-                      <TeamBadge short={match.home} size={48} />
-                      <div style={{ fontSize: 11, fontWeight: 800, marginTop: 6, color: IPL_TEAMS[match.home]?.color || "#fff" }}>{match.home}</div>
-                      <div style={{ fontSize: 9, color: "#4A6080", textAlign: "center" }}>{IPL_TEAMS[match.home]?.name || match.home}</div>
-                    </div>
-                    <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 18, fontWeight: 800, color: "#FF6B2B" }}>VS</div>
-                    <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
-                      <TeamBadge short={match.away} size={48} />
-                      <div style={{ fontSize: 11, fontWeight: 800, marginTop: 6, color: IPL_TEAMS[match.away]?.color || "#fff" }}>{match.away}</div>
-                      <div style={{ fontSize: 9, color: "#4A6080", textAlign: "center" }}>{IPL_TEAMS[match.away]?.name || match.away}</div>
-                    </div>
-                  </div>
+                  {/* Expanded betting section */}
+                  {isExpanded && (
+                    <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #1A3050" }}>
+                      {/* Teams large */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+                        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
+                          <TeamBadge short={match.home} size={48} />
+                          <div style={{ fontSize: 11, fontWeight: 800, marginTop: 6, color: IPL_TEAMS[match.home]?.color || "#fff" }}>{match.home}</div>
+                          <div style={{ fontSize: 9, color: "#4A6080", textAlign: "center" }}>{IPL_TEAMS[match.home]?.name || match.home}</div>
+                        </div>
+                        <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 18, fontWeight: 800, color: "#FF6B2B" }}>VS</div>
+                        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
+                          <TeamBadge short={match.away} size={48} />
+                          <div style={{ fontSize: 11, fontWeight: 800, marginTop: 6, color: IPL_TEAMS[match.away]?.color || "#fff" }}>{match.away}</div>
+                          <div style={{ fontSize: 9, color: "#4A6080", textAlign: "center" }}>{IPL_TEAMS[match.away]?.name || match.away}</div>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 10, color: "#2A4060", textAlign: "center", marginBottom: 14 }}>🏟 {match.venue.split(",")[0]}</div>
 
                   {/* Winner pick */}
                   <div style={{ marginBottom: 10 }}>
@@ -782,20 +814,76 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Others' picks */}
+                  {/* Others' picks — hidden until revealed */}
                   <div style={{ paddingTop: 10, borderTop: "1px solid #1A3050" }}>
-                    <div style={{ fontSize: 10, color: "#2A4060", marginBottom: 6 }}>OTHERS' PICKS:</div>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      {PLAYERS.filter(p => p !== selectedPlayer).map(p => {
-                        const pb = bets[`${match.id}__${p}`];
-                        return (
-                          <div key={p} style={{ fontSize: 11, color: "#7A90B0", background: "#0A1420", padding: "4px 10px", borderRadius: 20, border: `1px solid ${pb ? PLAYER_META[p].color + "44" : "#1A3050"}` }}>
-                            {PLAYER_META[p].emoji} {pb ? <span style={{ color: PLAYER_META[p].color, fontWeight: 700 }}>{pb}</span> : <span style={{ color: "#2A4060" }}>—</span>}
-                          </div>
-                        );
-                      })}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                      <div style={{ fontSize: 10, color: "#2A4060", fontWeight: 700 }}>OTHERS' PICKS:</div>
+                      {!revealedPicks[match.id] ? (
+                        <button
+                          onClick={() => setRevealedPicks(prev => ({ ...prev, [match.id]: true }))}
+                          style={{ fontSize: 10, fontWeight: 700, color: "#FF6B2B", background: "#FF6B2B18", border: "1px solid #FF6B2B44", borderRadius: 20, padding: "3px 10px", cursor: "pointer" }}>
+                          👁️ Reveal Picks
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setRevealedPicks(prev => ({ ...prev, [match.id]: false }))}
+                          style={{ fontSize: 10, fontWeight: 700, color: "#4A6080", background: "#1A305044", border: "1px solid #1A3050", borderRadius: 20, padding: "3px 10px", cursor: "pointer" }}>
+                          🙈 Hide Picks
+                        </button>
+                      )}
                     </div>
+                    {revealedPicks[match.id] ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        {/* Match picks revealed */}
+                        <div style={{ fontSize: 9, color: "#4A6080", fontWeight: 700, letterSpacing: 0.3 }}>🏆 WINNER PICKS:</div>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          {PLAYERS.filter(p => p !== selectedPlayer).map(p => {
+                            const pb = bets[`${match.id}__${p}`];
+                            return (
+                              <div key={p} style={{ fontSize: 11, color: "#7A90B0", background: "#0A1420", padding: "4px 10px", borderRadius: 20, border: `1px solid ${pb ? PLAYER_META[p].color + "44" : "#1A3050"}` }}>
+                                {PLAYER_META[p].emoji} {pb ? <span style={{ color: PLAYER_META[p].color, fontWeight: 700 }}>{pb}</span> : <span style={{ color: "#2A4060" }}>—</span>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {/* Toss picks revealed */}
+                        <div style={{ fontSize: 9, color: "#4A6080", fontWeight: 700, letterSpacing: 0.3 }}>🪙 TOSS PICKS:</div>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          {PLAYERS.filter(p => p !== selectedPlayer).map(p => {
+                            const pt = tossGuesses[`${match.id}__${p}`];
+                            return (
+                              <div key={p} style={{ fontSize: 11, color: "#7A90B0", background: "#0A1420", padding: "4px 10px", borderRadius: 20, border: `1px solid ${pt ? "#FFD70044" : "#1A3050"}` }}>
+                                {PLAYER_META[p].emoji} {pt ? <span style={{ color: "#FFD700", fontWeight: 700 }}>{pt}</span> : <span style={{ color: "#2A4060" }}>—</span>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        {/* Match picks hidden */}
+                        <div style={{ fontSize: 9, color: "#4A6080", fontWeight: 700, letterSpacing: 0.3 }}>🏆 WINNER PICKS:</div>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          {PLAYERS.filter(p => p !== selectedPlayer).map(p => (
+                            <div key={p} style={{ fontSize: 11, color: "#4A6080", background: "#0A1420", padding: "4px 10px", borderRadius: 20, border: "1px solid #1A3050", letterSpacing: 2 }}>
+                              {PLAYER_META[p].emoji} •••
+                            </div>
+                          ))}
+                        </div>
+                        {/* Toss picks hidden */}
+                        <div style={{ fontSize: 9, color: "#4A6080", fontWeight: 700, letterSpacing: 0.3 }}>🪙 TOSS PICKS:</div>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          {PLAYERS.filter(p => p !== selectedPlayer).map(p => (
+                            <div key={p} style={{ fontSize: 11, color: "#4A6080", background: "#0A1420", padding: "4px 10px", borderRadius: 20, border: "1px solid #1A3050", letterSpacing: 2 }}>
+                              {PLAYER_META[p].emoji} •••
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -1194,4 +1282,4 @@ export default function App() {
       </div>
     </div>
   );
-        }
+      }
