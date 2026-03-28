@@ -326,6 +326,13 @@ export default function App() {
     setLoading(false);
   }, []);
 
+  // Collapse expanded match and clear revealed picks when player or tab changes
+  useEffect(() => {
+    setExpandedMatch(null);
+    setMatchConfirm(null);
+    setRevealedPicks({});
+  }, [selectedPlayer, tab]);
+
 
   function getPlaceholderMatches() {
     // Official IPL 2026 full schedule (70 league matches) — source: BCCI / Wisden
@@ -1440,4 +1447,4 @@ export default function App() {
       })()}
     </div>
   );
-                                         }
+}
