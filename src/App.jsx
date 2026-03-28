@@ -495,13 +495,13 @@ export default function App() {
                     <span style={{fontSize:10,color:"#2A4060"}}>🏟 {match.venue.split(",")[0]}</span>
                   </div>
                   <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
-                    <div style={{flex:1,textAlign:"center"}}>
+                    <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center"}}>
                       <TeamBadge short={match.home} size={48}/>
                       <div style={{fontSize:11,fontWeight:800,marginTop:6,color:IPL_TEAMS[match.home]?.color||"#fff"}}>{match.home}</div>
                       <div style={{fontSize:9,color:"#4A6080"}}>{IPL_TEAMS[match.home]?.name||match.home}</div>
                     </div>
                     <div style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:800,color:"#FF6B2B"}}>VS</div>
-                    <div style={{flex:1,textAlign:"center"}}>
+                    <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center"}}>
                       <TeamBadge short={match.away} size={48}/>
                       <div style={{fontSize:11,fontWeight:800,marginTop:6,color:IPL_TEAMS[match.away]?.color||"#fff"}}>{match.away}</div>
                       <div style={{fontSize:9,color:"#4A6080"}}>{IPL_TEAMS[match.away]?.name||match.away}</div>
@@ -562,14 +562,14 @@ export default function App() {
                     </span>
                   </div>
                   <div style={{display:"flex",alignItems:"center",gap:10}}>
-                    <TeamBadge short={match.home} size={36}/>
+                    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3}}><TeamBadge short={match.home} size={36}/><div style={{fontSize:9,fontWeight:700,color:IPL_TEAMS[match.home]?.color||"#fff"}}>{match.home}</div></div>
                     <div style={{flex:1,textAlign:"center"}}>
                       <div style={{fontSize:12,fontWeight:800,color:winner?"#FFD700":"#E2E8F8"}}>
                         {status==="completed"?`${winner} won`:status==="live"?"In Progress":match.time}
                       </div>
                       <div style={{fontSize:9,color:"#2A4060",marginTop:2}}>🏟 {match.venue.split(",")[0]}</div>
                     </div>
-                    <TeamBadge short={match.away} size={36}/>
+                    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3}}><TeamBadge short={match.away} size={36}/><div style={{fontSize:9,fontWeight:700,color:IPL_TEAMS[match.away]?.color||"#fff"}}>{match.away}</div></div>
                   </div>
                   <div style={{marginTop:10,display:"flex",gap:6,flexWrap:"wrap"}}>
                     {PLAYERS.map(p=>{
