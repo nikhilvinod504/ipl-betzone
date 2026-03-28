@@ -160,6 +160,56 @@ function TeamBadge({ short, size = 40 }) {
       letterSpacing: -0.5,
     }}>
       {short}
+      {/* ── MATCH OPEN CONFIRMATION ── */}
+      {matchConfirm && (() => {
+        const m = matches.find(x => x.id === matchConfirm);
+        const meta = PLAYER_META[selectedPlayer];
+        return (
+          <div style={{ position: "fixed", inset: 0, background: "#000000CC", zIndex: 9998, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+            <div style={{ background: "#0D1828", border: `1px solid ${meta.color}44`, borderRadius: 20, padding: 24, maxWidth: 320, width: "100%", boxShadow: "0 20px 60px #000" }}>
+              {/* Player avatar */}
+              <div style={{ textAlign: "center", marginBottom: 16 }}>
+                <div style={{ width: 64, height: 64, borderRadius: "50%", background: meta.light, border: `3px solid ${meta.color}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32, margin: "0 auto" }}>
+                  {meta.emoji}
+                </div>
+              </div>
+              {/* Title */}
+              <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 15, fontWeight: 800, color: "#E2E8F8", textAlign: "center", marginBottom: 4 }}>
+                Betting as
+              </div>
+              <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 20, fontWeight: 800, color: meta.color, textAlign: "center", marginBottom: 16 }}>
+                {selectedPlayer}
+              </div>
+              {/* Match info */}
+              <div style={{ background: "#0A1420", borderRadius: 12, padding: "12px 16px", marginBottom: 16, textAlign: "center" }}>
+                <div style={{ fontSize: 11, color: "#4A6080", marginBottom: 8 }}>You are placing bets for</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+                  <TeamBadge short={m?.home} size={36} />
+                  <span style={{ fontFamily: "'Syne',sans-serif", fontSize: 14, fontWeight: 800, color: "#FF6B2B" }}>VS</span>
+                  <TeamBadge short={m?.away} size={36} />
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#E2E8F8", marginTop: 8 }}>{m?.home} vs {m?.away}</div>
+                <div style={{ fontSize: 10, color: "#4A6080", marginTop: 4 }}>📅 {m?.date} · {m?.time}</div>
+              </div>
+              {/* Warning */}
+              <div style={{ fontSize: 11, color: "#4A6080", textAlign: "center", marginBottom: 18, lineHeight: 1.6 }}>
+                Not you? Switch your name at the top before continuing.
+              </div>
+              {/* Buttons */}
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={() => setMatchConfirm(null)}
+                  style={{ flex: 1, padding: "12px", borderRadius: 12, border: "1px solid #1A3050", background: "#0A1420", color: "#7A90B0", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+                  ✗ Cancel
+                </button>
+                <button onClick={() => { setExpandedMatch(matchConfirm); setMatchConfirm(null); }}
+                  style={{ flex: 1, padding: "12px", borderRadius: 12, border: "none", background: meta.color, color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
+                  ✓ Yes, it's me!
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -177,6 +227,56 @@ function Toast({ msg, type }) {
       animation: "slideDown .25s ease",
     }}>
       {msg}
+      {/* ── MATCH OPEN CONFIRMATION ── */}
+      {matchConfirm && (() => {
+        const m = matches.find(x => x.id === matchConfirm);
+        const meta = PLAYER_META[selectedPlayer];
+        return (
+          <div style={{ position: "fixed", inset: 0, background: "#000000CC", zIndex: 9998, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+            <div style={{ background: "#0D1828", border: `1px solid ${meta.color}44`, borderRadius: 20, padding: 24, maxWidth: 320, width: "100%", boxShadow: "0 20px 60px #000" }}>
+              {/* Player avatar */}
+              <div style={{ textAlign: "center", marginBottom: 16 }}>
+                <div style={{ width: 64, height: 64, borderRadius: "50%", background: meta.light, border: `3px solid ${meta.color}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32, margin: "0 auto" }}>
+                  {meta.emoji}
+                </div>
+              </div>
+              {/* Title */}
+              <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 15, fontWeight: 800, color: "#E2E8F8", textAlign: "center", marginBottom: 4 }}>
+                Betting as
+              </div>
+              <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 20, fontWeight: 800, color: meta.color, textAlign: "center", marginBottom: 16 }}>
+                {selectedPlayer}
+              </div>
+              {/* Match info */}
+              <div style={{ background: "#0A1420", borderRadius: 12, padding: "12px 16px", marginBottom: 16, textAlign: "center" }}>
+                <div style={{ fontSize: 11, color: "#4A6080", marginBottom: 8 }}>You are placing bets for</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+                  <TeamBadge short={m?.home} size={36} />
+                  <span style={{ fontFamily: "'Syne',sans-serif", fontSize: 14, fontWeight: 800, color: "#FF6B2B" }}>VS</span>
+                  <TeamBadge short={m?.away} size={36} />
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#E2E8F8", marginTop: 8 }}>{m?.home} vs {m?.away}</div>
+                <div style={{ fontSize: 10, color: "#4A6080", marginTop: 4 }}>📅 {m?.date} · {m?.time}</div>
+              </div>
+              {/* Warning */}
+              <div style={{ fontSize: 11, color: "#4A6080", textAlign: "center", marginBottom: 18, lineHeight: 1.6 }}>
+                Not you? Switch your name at the top before continuing.
+              </div>
+              {/* Buttons */}
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={() => setMatchConfirm(null)}
+                  style={{ flex: 1, padding: "12px", borderRadius: 12, border: "1px solid #1A3050", background: "#0A1420", color: "#7A90B0", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+                  ✗ Cancel
+                </button>
+                <button onClick={() => { setExpandedMatch(matchConfirm); setMatchConfirm(null); }}
+                  style={{ flex: 1, padding: "12px", borderRadius: 12, border: "none", background: meta.color, color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
+                  ✓ Yes, it's me!
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -187,6 +287,7 @@ export default function App() {
   const [selectedPlayer, setSelectedPlayer] = useState(PLAYERS[0]);
   const [revealedPicks, setRevealedPicks] = useState({}); // tracks which match picks are revealed
   const [expandedMatch, setExpandedMatch] = useState(null); // tracks which match is expanded for betting
+  const [matchConfirm, setMatchConfirm] = useState(null); // matchId pending confirmation before opening
   const [toast, setToast] = useState(null);
 
   // Firebase state
@@ -741,7 +842,7 @@ export default function App() {
                 <div key={match.id} style={{ ...S.card(isExpanded ? meta.color + "44" : "#1A3050"), cursor: "pointer" }}>
 
                   {/* Collapsed header — always visible, tap to expand */}
-                  <div onClick={() => setExpandedMatch(isExpanded ? null : match.id)}
+                  <div onClick={() => { if (isExpanded) { setExpandedMatch(null); } else { setMatchConfirm(match.id); } }}
                     style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <TeamBadge short={match.home} size={32} />
                     <div style={{ flex: 1 }}>
@@ -921,18 +1022,25 @@ export default function App() {
                       <div style={{ fontSize: 9, fontWeight: 700, color: IPL_TEAMS[match.away]?.color || "#fff" }}>{match.away}</div>
                     </div>
                   </div>
-                  {/* all picks for schedule view */}
-                  <div style={{ marginTop: 10, display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {PLAYERS.map(p => {
-                      const pb = bets[`${match.id}__${p}`];
-                      const correct = winner && pb === winner;
-                      return (
-                        <span key={p} style={{ fontSize: 10, padding: "3px 8px", borderRadius: 20, background: correct ? "#14532D33" : "#0A1420", color: correct ? "#22C55E" : "#4A6080", border: `1px solid ${correct ? "#22C55E33" : "#1A3050"}` }}>
-                          {PLAYER_META[p].emoji} {pb || "—"}{correct ? " ✅" : ""}
-                        </span>
-                      );
-                    })}
-                  </div>
+                  {/* picks — only show when live or completed */}
+                  {(status === "live" || status === "completed") && (
+                    <div style={{ marginTop: 10, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {PLAYERS.map(p => {
+                        const pb = bets[`${match.id}__${p}`];
+                        const correct = winner && pb === winner;
+                        return (
+                          <span key={p} style={{ fontSize: 10, padding: "3px 8px", borderRadius: 20, background: correct ? "#14532D33" : "#0A1420", color: correct ? "#22C55E" : "#4A6080", border: `1px solid ${correct ? "#22C55E33" : "#1A3050"}` }}>
+                            {PLAYER_META[p].emoji} {pb || "—"}{correct ? " ✅" : ""}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {status === "upcoming" && (
+                    <div style={{ marginTop: 10, fontSize: 10, color: "#2A4060", fontStyle: "italic" }}>
+                      🔒 Picks hidden until match is live
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -1280,6 +1388,56 @@ export default function App() {
           </div>
         )}
       </div>
+      {/* ── MATCH OPEN CONFIRMATION ── */}
+      {matchConfirm && (() => {
+        const m = matches.find(x => x.id === matchConfirm);
+        const meta = PLAYER_META[selectedPlayer];
+        return (
+          <div style={{ position: "fixed", inset: 0, background: "#000000CC", zIndex: 9998, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+            <div style={{ background: "#0D1828", border: `1px solid ${meta.color}44`, borderRadius: 20, padding: 24, maxWidth: 320, width: "100%", boxShadow: "0 20px 60px #000" }}>
+              {/* Player avatar */}
+              <div style={{ textAlign: "center", marginBottom: 16 }}>
+                <div style={{ width: 64, height: 64, borderRadius: "50%", background: meta.light, border: `3px solid ${meta.color}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32, margin: "0 auto" }}>
+                  {meta.emoji}
+                </div>
+              </div>
+              {/* Title */}
+              <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 15, fontWeight: 800, color: "#E2E8F8", textAlign: "center", marginBottom: 4 }}>
+                Betting as
+              </div>
+              <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 20, fontWeight: 800, color: meta.color, textAlign: "center", marginBottom: 16 }}>
+                {selectedPlayer}
+              </div>
+              {/* Match info */}
+              <div style={{ background: "#0A1420", borderRadius: 12, padding: "12px 16px", marginBottom: 16, textAlign: "center" }}>
+                <div style={{ fontSize: 11, color: "#4A6080", marginBottom: 8 }}>You are placing bets for</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+                  <TeamBadge short={m?.home} size={36} />
+                  <span style={{ fontFamily: "'Syne',sans-serif", fontSize: 14, fontWeight: 800, color: "#FF6B2B" }}>VS</span>
+                  <TeamBadge short={m?.away} size={36} />
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#E2E8F8", marginTop: 8 }}>{m?.home} vs {m?.away}</div>
+                <div style={{ fontSize: 10, color: "#4A6080", marginTop: 4 }}>📅 {m?.date} · {m?.time}</div>
+              </div>
+              {/* Warning */}
+              <div style={{ fontSize: 11, color: "#4A6080", textAlign: "center", marginBottom: 18, lineHeight: 1.6 }}>
+                Not you? Switch your name at the top before continuing.
+              </div>
+              {/* Buttons */}
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={() => setMatchConfirm(null)}
+                  style={{ flex: 1, padding: "12px", borderRadius: 12, border: "1px solid #1A3050", background: "#0A1420", color: "#7A90B0", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+                  ✗ Cancel
+                </button>
+                <button onClick={() => { setExpandedMatch(matchConfirm); setMatchConfirm(null); }}
+                  style={{ flex: 1, padding: "12px", borderRadius: 12, border: "none", background: meta.color, color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
+                  ✓ Yes, it's me!
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
-      }
+                                         }
