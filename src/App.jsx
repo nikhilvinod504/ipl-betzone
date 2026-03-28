@@ -17,8 +17,7 @@ const firebaseApp = initializeApp(firebaseConfig);
 const db = getDatabase(firebaseApp);
 
 // ─── CricketData API ───────────────────────────────────────────────
-const CRICKET_API_KEY = "d6dac081-2575-4505-a1cf-e4d96c27cc29";
-const CRICKET_BASE = "https://api.cricapi.com/v1";
+// CricketData API removed — all results managed manually via Admin panel
 
 // ─── Constants ─────────────────────────────────────────────────────
 const PLAYERS = ["Nakel", "Mitthu", "Megs"];
@@ -196,8 +195,8 @@ export default function App() {
   // Cricket API state
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [apiError, setApiError] = useState(null);
-  const [lastFetched, setLastFetched] = useState(null);
+  const [apiError, setApiError] = useState(null); // kept for compatibility
+  const [lastFetched, setLastFetched] = useState(null); // kept for compatibility
 
   // Admin
   const [adminMode, setAdminMode] = useState(false);
@@ -222,47 +221,8 @@ export default function App() {
     const schedule = getPlaceholderMatches();
     setMatches(schedule);
     setLoading(false);
-    fetchLiveResults(schedule);
-    const interval = setInterval(() => fetchLiveResults(getPlaceholderMatches()), 5 * 60 * 1000);
-    return () => clearInterval(interval);
   }, []);
 
-  async function fetchLiveResults(schedule) {
-    try {
-      setApiError(null);
-      const res = await fetch(`${CRICKET_BASE}/matches?apikey=${CRICKET_API_KEY}&offset=0`);
-      const data = await res.json();
-      if (data.status !== "success") throw new Error(data.reason || "API error");
-      const apiMatches = data.data || [];
-
-      const enriched = schedule.map(match => {
-        const found = apiMatches.find(m => {
-          const name = (m.name || "").toLowerCase();
-          const h = IPL_TEAMS[match.home]?.name.toLowerCase().split(" ")[0] || "";
-          const a = IPL_TEAMS[match.away]?.name.toLowerCase().split(" ")[0] || "";
-          return name.includes(h) && name.includes(a);
-        });
-        if (!found) return match;
-
-        const isLive = found.matchStarted && !found.matchEnded;
-        const isCompleted = found.matchEnded;
-        let apiWinner = null;
-        if (isCompleted && found.status) {
-          const s = found.status.toLowerCase();
-          for (const [key, val] of Object.entries(IPL_TEAMS)) {
-            if (s.includes(val.name.toLowerCase().split(" ")[0])) { apiWinner = key; break; }
-          }
-        }
-        return { ...match, status: isLive ? "live" : isCompleted ? "completed" : "upcoming", apiWinner, liveStatus: found.status || "" };
-      });
-
-      setMatches(enriched);
-      setLastFetched(new Date());
-    } catch (err) {
-      console.error("Cricket API error:", err);
-      setApiError(err.message);
-    }
-  }
 
   function getPlaceholderMatches() {
     // Official IPL 2026 full schedule (70 league matches) — source: BCCI / Wisden
@@ -360,8 +320,7 @@ export default function App() {
 
   function getEffectiveWinner(match) {
     const manual = manualResults[fbKey(match.id)];
-    if (manual?.winner) return manual.winner;
-    return match.apiWinner;
+    return manual?.winner || null;
   }
 
   function getEffectiveTossWinner(match) {
@@ -580,8 +539,8 @@ export default function App() {
               🏏 <span style={{ color: "#FF6B2B" }}>IPL</span><span style={{ color: "#FFD700" }}>BETZONE</span>
             </div>
             <div style={{ fontSize: 10, color: "#4A6080", marginTop: 2 }}>
-              IPL 2026 · {lastFetched ? `Updated ${fmtTime(lastFetched)}` : "Live data"}
-              {apiError && <span style={{ color: "#EF4444", marginLeft: 6 }}>⚠ Offline mode</span>}
+              IPL 2026 · Results managed via Admin panel
+
             </div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
@@ -612,7 +571,7 @@ export default function App() {
             <span style={{ fontSize: 12, color: "#EF4444", fontWeight: 700 }}>LIVE:</span>
             {liveMatches.map(m => (
               <span key={m.id} style={{ fontSize: 12, color: "#FCA5A5" }}>
-                {m.home} vs {m.away} — {m.liveStatus}
+              <span key={m.id} style={{fontSize:12,color:"#FCA5A5"}}>{m.home} vs {m.away}</span>
               </span>
             ))}
           </div>
@@ -752,7 +711,7 @@ export default function App() {
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <TeamBadge short={match.home} />
-                  <div style={{ flex: 1, textAlign: "center", fontSize: 11, color: "#FCA5A5" }}>{match.liveStatus || "In progress"}</div>
+                  <div style={{ flex: 1, textAlign: "center", fontSize: 11, color: "#FCA5A5" }}>{m.home} vs {m.away} — Bets locked</div>
                   <TeamBadge short={match.away} />
                 </div>
                 <div style={{ marginTop: 10, fontSize: 11, color: "#4A6080", textAlign: "center" }}>Betting closed — match is live!</div>
@@ -865,7 +824,7 @@ export default function App() {
                     </div>
                     <div style={{ flex: 1, textAlign: "center" }}>
                       <div style={{ fontSize: 12, fontWeight: 800, color: winner ? "#FFD700" : "#E2E8F8" }}>
-                        {status === "completed" ? `${winner} won` : status === "live" ? match.liveStatus || "In Progress" : `${match.time}`}
+                        {status === "completed" ? `${winner} won` : status === "live" ? "In Progress 🔴" : `${match.time}`}
                       </div>
                       <div style={{ fontSize: 9, color: "#2A4060", marginTop: 2 }}>🏟 {match.venue.split(",")[0]}</div>
                     </div>
@@ -1235,4 +1194,4 @@ export default function App() {
       </div>
     </div>
   );
-}
+        }
