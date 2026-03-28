@@ -26,16 +26,16 @@ const PLAYER_META = {
 };
 
 const IPL_TEAMS = {
-  MI:   { name: "Mumbai Indians",             color: "#005DA0", accent: "#D4AF37" },
-  CSK:  { name: "Chennai Super Kings",         color: "#F9CD05", accent: "#0081E9" },
-  RCB:  { name: "Royal Challengers Bengaluru", color: "#C8102E", accent: "#FFD700" },
-  KKR:  { name: "Kolkata Knight Riders",       color: "#3A225D", accent: "#F4C430" },
-  DC:   { name: "Delhi Capitals",              color: "#004C93", accent: "#EF1C25" },
-  SRH:  { name: "Sunrisers Hyderabad",         color: "#FF6600", accent: "#000000" },
-  RR:   { name: "Rajasthan Royals",            color: "#E8116E", accent: "#254AA5" },
-  PBKS: { name: "Punjab Kings",               color: "#C8122A", accent: "#DCDDDF" },
-  LSG:  { name: "Lucknow Super Giants",        color: "#A72B2A", accent: "#FBCA05" },
-  GT:   { name: "Gujarat Titans",              color: "#1D4E8F", accent: "#A0C0F0" },
+  MI:   { name: "Mumbai Indians",             color: "#005DA0", accent: "#D4AF37", logo: "https://scores.iplt20.com/ipl/teamlogos/MI.png" },
+  CSK:  { name: "Chennai Super Kings",         color: "#F9CD05", accent: "#0081E9", logo: "https://scores.iplt20.com/ipl/teamlogos/CSK.png" },
+  RCB:  { name: "Royal Challengers Bengaluru", color: "#C8102E", accent: "#FFD700", logo: "https://scores.iplt20.com/ipl/teamlogos/RCB.png" },
+  KKR:  { name: "Kolkata Knight Riders",       color: "#3A225D", accent: "#F4C430", logo: "https://scores.iplt20.com/ipl/teamlogos/KKR.png" },
+  DC:   { name: "Delhi Capitals",              color: "#004C93", accent: "#EF1C25", logo: "https://scores.iplt20.com/ipl/teamlogos/DC.png" },
+  SRH:  { name: "Sunrisers Hyderabad",         color: "#FF6600", accent: "#000000", logo: "https://scores.iplt20.com/ipl/teamlogos/SRH.png" },
+  RR:   { name: "Rajasthan Royals",            color: "#E8116E", accent: "#254AA5", logo: "https://scores.iplt20.com/ipl/teamlogos/RR.png" },
+  PBKS: { name: "Punjab Kings",               color: "#C8122A", accent: "#DCDDDF", logo: "https://scores.iplt20.com/ipl/teamlogos/PBKS.png" },
+  LSG:  { name: "Lucknow Super Giants",        color: "#A72B2A", accent: "#FBCA05", logo: "https://scores.iplt20.com/ipl/teamlogos/LSG.png" },
+  GT:   { name: "Gujarat Titans",              color: "#1D4E8F", accent: "#A0C0F0", logo: "https://scores.iplt20.com/ipl/teamlogos/GT.png" },
 };
 
 const S = {
@@ -55,8 +55,17 @@ function fmtTime(dateStr) {
 
 function TeamBadge({ short, size=40 }) {
   const t = IPL_TEAMS[short];
+  const [imgError, setImgError] = useState(false);
+  if (t?.logo && !imgError) {
+    return (
+      <div style={{ width:size, height:size, borderRadius:"50%", background:t.color, border:`2px solid ${t.accent}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, overflow:"hidden" }}>
+        <img src={t.logo} alt={short} onError={()=>setImgError(true)}
+          style={{ width:"85%", height:"85%", objectFit:"contain" }} />
+      </div>
+    );
+  }
   return (
-    <div style={{ width:size, height:size, borderRadius:"50%", background:t?.color||"#1A3050", border:`2px solid ${t?.accent||"#2A4060"}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:size*0.28, fontWeight:800, color:t?.accent||"#fff", flexShrink:0, letterSpacing:-0.5 }}>
+    <div style={{ width:size, height:size, borderRadius:"50%", background:t?.color||"#1A3050", border:`2px solid ${t?.accent||"#2A4060"}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:size*0.28, fontWeight:800, color:t?.accent||"#fff", flexShrink:0 }}>
       {short}
     </div>
   );
