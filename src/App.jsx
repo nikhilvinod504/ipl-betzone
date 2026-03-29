@@ -761,13 +761,13 @@ export default function App() {
                       <div style={{ fontSize: 10, color: "#4A6080", marginTop: 2 }}>📅 {match.date} · {match.time}</div>
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-                      {/* Show bet status indicators */}
+                      {/* Show only whether bet exists — never reveal the team name */}
                       <div style={{ display: "flex", gap: 4 }}>
                         <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 10, background: hasBet ? meta.color + "33" : "#1A3050", color: hasBet ? meta.color : "#2A4060", fontWeight: 700 }}>
-                          🏆 {hasBet ? myBet : "—"}
+                          🏆 {hasBet ? "✓" : "—"}
                         </span>
                         <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 10, background: hasToss ? "#FFD70022" : "#1A3050", color: hasToss ? "#FFD700" : "#2A4060", fontWeight: 700 }}>
-                          🪙 {hasToss ? myToss : "—"}
+                          🪙 {hasToss ? "✓" : "—"}
                         </span>
                       </div>
                       <span style={{ fontSize: 14, color: "#4A6080" }}>{isExpanded ? "▲" : "▼"}</span>
@@ -1347,4 +1347,4 @@ export default function App() {
       })()}
     </div>
   );
-                }
+}
