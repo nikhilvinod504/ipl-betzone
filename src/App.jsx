@@ -191,16 +191,19 @@ function fmtMatchTime(rawDate) {
     const d = new Date(rawDate);
     const localTZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
     const isIndia = localTZ.includes("Kolkata") || localTZ.includes("India");
+    // IST time — always computed
     const ist = d.toLocaleTimeString("en-IN", {
       hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata",
     });
-    // India — just show IST
+    // India users — only show IST, nothing else
     if (isIndia) return `${ist} IST`;
     // Outside India — show local time with TZ code + IST reference
-    const localWithTZ = d.toLocaleTimeString(undefined, {
-      hour: "2-digit", minute: "2-digit", timeZoneName: "short",
+    const localTime = d.toLocaleTimeString(undefined, {
+      hour: "2-digit", minute: "2-digit",
     });
-    return `${localWithTZ} · ${ist} IST`;
+    const tzCode = d.toLocaleTimeString(undefined, { timeZoneName: "short" })
+      .split(" ").pop(); // Extract just the TZ code e.g. "EDT"
+    return `${localTime} ${tzCode} · ${ist} IST`;
   } catch { return ""; }
 }
 
@@ -1824,4 +1827,4 @@ export default function App() {
       })()}
     </div>
   );
-         }
+    }
