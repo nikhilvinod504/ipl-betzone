@@ -1275,81 +1275,72 @@ export default function App() {
                 {/* Log entries */}
                 {spyLog.map((entry, i) => {
                   const meta = PLAYER_META[entry.player] || { emoji:"❓", color:"#7A90B0", light:"#7A90B018" };
+                  const typeConfig = {
+                    peek:             { icon:"👁️", label:"peeked at picks for",    color:"#FF6B2B", bg:"#FF6B2B18" },
+                    identity_confirm: { icon:"✅",  label:"confirmed as",            color:"#22C55E", bg:"#22C55E18" },
+                    match_expand:     { icon:"🔓", label:"opened betting view for", color:"#00C2FF", bg:"#00C2FF18" },
+                  };
+                  const tc = typeConfig[entry.type] || typeConfig.peek;
                   return (
-                    {(() => {
-                      const typeConfig = {
-                        peek:              { icon:"👁️", label:"peeked at picks for",   color:"#FF6B2B", bg:"#FF6B2B18" },
-                        identity_confirm:  { icon:"✅", label:"confirmed as",           color:"#22C55E", bg:"#22C55E18" },
-                        match_expand:      { icon:"🔓", label:"opened betting view for", color:"#00C2FF", bg:"#00C2FF18" },
-                      };
-                      const tc = typeConfig[entry.type] || typeConfig.peek;
-                      return (
-                        <div key={entry.id || i} style={{ ...S.card(meta.color+"33"), marginBottom:10 }}>
-                          {/* Event type badge */}
-                          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-                            <span style={{ fontSize:9, fontWeight:700, padding:"2px 8px", borderRadius:10, background:tc.bg, color:tc.color, border:`1px solid ${tc.color}44` }}>
-                              {tc.icon} {entry.type === "identity_confirm" ? "IDENTITY CONFIRMED" : entry.type === "match_expand" ? "MATCH OPENED" : "PEEKED AT PICKS"}
-                            </span>
-                            <span style={{ fontSize:10, color:"#4A6080" }}>🕐 {fmtLogTime(entry.timestamp)}</span>
+                    <div key={entry.id || i} style={{ ...S.card(meta.color+"33"), marginBottom:10 }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                        <span style={{ fontSize:9, fontWeight:700, padding:"2px 8px", borderRadius:10, background:tc.bg, color:tc.color, border:`1px solid ${tc.color}44` }}>
+                          {tc.icon} {entry.type === "identity_confirm" ? "IDENTITY CONFIRMED" : entry.type === "match_expand" ? "MATCH OPENED" : "PEEKED AT PICKS"}
+                        </span>
+                        <span style={{ fontSize:10, color:"#4A6080" }}>🕐 {fmtLogTime(entry.timestamp)}</span>
+                      </div>
+                      <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                        <div style={{ width:38, height:38, borderRadius:"50%", background:meta.light, border:`2px solid ${meta.color}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>
+                          {meta.emoji}
+                        </div>
+                        <div style={{ flex:1 }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
+                            <span style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:13, color:meta.color }}>{entry.player}</span>
+                            <span style={{ fontSize:11, color:"#4A6080" }}>{tc.label}</span>
+                            {entry.type === "identity_confirm" ? (
+                              <span style={{ fontSize:12, fontWeight:700, color:"#22C55E" }}>{entry.claimedAs}</span>
+                            ) : (
+                              <span style={{ fontSize:12, fontWeight:700, color:"#E2E8F8" }}>{entry.home} vs {entry.away}</span>
+                            )}
                           </div>
-                          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                            <div style={{ width:38, height:38, borderRadius:"50%", background:meta.light, border:`2px solid ${meta.color}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>
-                              {meta.emoji}
+                          {entry.type === "identity_confirm" && (
+                            <div style={{ fontSize:10, color:"#4A6080", marginTop:2 }}>for match: {entry.home} vs {entry.away}</div>
+                          )}
+                          {entry.mismatch && (
+                            <div style={{ marginTop:6, padding:"6px 10px", borderRadius:8, background:"#7F1D1D33", border:"1px solid #EF444466", fontSize:10, color:"#EF4444", fontWeight:700 }}>
+                              ⚠️ MISMATCH! Claimed <b>{entry.claimedAs}</b> but device = <b>{entry.likelyUser}</b>!
                             </div>
-                            <div style={{ flex:1 }}>
-                              <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
-                                <span style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:13, color:meta.color }}>{entry.player}</span>
-                                <span style={{ fontSize:11, color:"#4A6080" }}>{tc.label}</span>
-                                {entry.type === "identity_confirm" ? (
-                                  <span style={{ fontSize:12, fontWeight:700, color:"#22C55E" }}>{entry.claimedAs}</span>
-                                ) : (
-                                  <span style={{ fontSize:12, fontWeight:700, color:"#E2E8F8" }}>{entry.home} vs {entry.away}</span>
-                                )}
-                              </div>
-                              {entry.type === "identity_confirm" && (
-                                <div style={{ fontSize:10, color:"#4A6080", marginTop:2 }}>
-                                  for match: {entry.home} vs {entry.away}
-                                </div>
-                              )}
-                              {/* Identity mismatch alert */}
-                              {entry.mismatch && (
-                                <div style={{ marginTop:6, padding:"6px 10px", borderRadius:8, background:"#7F1D1D33", border:"1px solid #EF444466", fontSize:10, color:"#EF4444", fontWeight:700 }}>
-                                  ⚠️ MISMATCH! Claimed <b>{entry.claimedAs}</b> but device = <b>{entry.likelyUser}</b>!
-                                </div>
-                              )}
-                              {/* Device identity match */}
-                              {entry.likelyUser && !entry.mismatch && (
-                                <div style={{ marginTop:5, fontSize:9, color:"#22C55E", fontWeight:700 }}>
-                                  🎯 Device matches {entry.likelyUser}'s profile ✓
-                                </div>
-                              )}
-                              {!entry.likelyUser && (
-                                <div style={{ marginTop:5, fontSize:9, color:"#4A6080", fontStyle:"italic" }}>❓ Unknown device profile</div>
-                              )}
-                              <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginTop:6 }}>
-                                <span style={{ fontSize:9, background:"#0A1420", color:"#4A6080", padding:"2px 7px", borderRadius:10, border:"1px solid #1A3050" }}>
-                                  {entry.deviceType || "📱 Phone"}
-                                </span>
-                                <span style={{ fontSize:9, background:"#0A1420", color:"#4A6080", padding:"2px 7px", borderRadius:10, border:"1px solid #1A3050" }}>
-                                  {entry.browser || "Chrome"} · {entry.os || "Android"}
-                                </span>
-                                <span style={{ fontSize:9, background:"#0A1420", color:"#4A6080", padding:"2px 7px", borderRadius:10, border:"1px solid #1A3050" }}>
-                                  🌍 {entry.timezone || "Asia/Kolkata"}
-                                </span>
-                                <span style={{ fontSize:9, background:"#0A1420", color:"#4A6080", padding:"2px 7px", borderRadius:10, border:"1px solid #1A3050" }}>
-                                  ⏰ {entry.localTime || "—"} local
-                                </span>
-                              </div>
+                          )}
+                          {entry.likelyUser && !entry.mismatch && (
+                            <div style={{ marginTop:5, fontSize:9, color:"#22C55E", fontWeight:700 }}>
+                              🎯 Device matches {entry.likelyUser}'s profile ✓
                             </div>
-                            <div style={{ fontSize:24 }}>{tc.icon}</div>
+                          )}
+                          {!entry.likelyUser && (
+                            <div style={{ marginTop:5, fontSize:9, color:"#4A6080", fontStyle:"italic" }}>❓ Unknown device profile</div>
+                          )}
+                          <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginTop:6 }}>
+                            <span style={{ fontSize:9, background:"#0A1420", color:"#4A6080", padding:"2px 7px", borderRadius:10, border:"1px solid #1A3050" }}>
+                              {entry.deviceType || "📱 Phone"}
+                            </span>
+                            <span style={{ fontSize:9, background:"#0A1420", color:"#4A6080", padding:"2px 7px", borderRadius:10, border:"1px solid #1A3050" }}>
+                              {entry.browser || "Chrome"} · {entry.os || "Android"}
+                            </span>
+                            <span style={{ fontSize:9, background:"#0A1420", color:"#4A6080", padding:"2px 7px", borderRadius:10, border:"1px solid #1A3050" }}>
+                              🌍 {entry.timezone || "Asia/Kolkata"}
+                            </span>
+                            <span style={{ fontSize:9, background:"#0A1420", color:"#4A6080", padding:"2px 7px", borderRadius:10, border:"1px solid #1A3050" }}>
+                              ⏰ {entry.localTime || "—"} local
+                            </span>
                           </div>
                         </div>
-                      );
-                    })()}
+                        <div style={{ fontSize:24 }}>{tc.icon}</div>
+                      </div>
+                    </div>
                   );
                 })}
 
-                {/* Clear log button — admin only */}
+                                {/* Clear log button — admin only */}
                 {adminMode && (
                   <button onClick={() => set(ref(db,"spyLog"), null)}
                     style={{ width:"100%", padding:"10px", borderRadius:10, border:"1px solid #7F1D1D55", background:"transparent", color:"#EF444488", fontSize:11, cursor:"pointer", marginTop:8 }}>
