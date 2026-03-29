@@ -186,6 +186,7 @@ export default function App() {
   const [tab, setTab] = useState("leaderboard");
   const [selectedPlayer, setSelectedPlayer] = useState(PLAYERS[0]);
   const [revealedPicks, setRevealedPicks] = useState({}); // tracks which match picks are revealed
+  const [spyLog, setSpyLog] = useState([]); // local session log of peek events
   const [expandedMatch, setExpandedMatch] = useState(null); // tracks which match is expanded for betting
   const [matchConfirm, setMatchConfirm] = useState(null); // matchId pending confirmation before opening
   const [toast, setToast] = useState(null);
@@ -212,8 +213,11 @@ export default function App() {
       onValue(ref(db, "bets"), snap => setBets(snap.val() || {})),
       onValue(ref(db, "tossGuesses"), snap => setTossGuesses(snap.val() || {})),
       onValue(ref(db, "manualResults"), snap => setManualResults(snap.val() || {})),
-      onValue(ref(db, "iplTable"), snap => {
-        if (snap.val()) setIplTable(snap.val());
+      onValue(ref(db, "iplTable"), snap => { if (snap.val()) setIplTable(snap.val()); }),
+      onValue(ref(db, "spyLog"), snap => {
+        const data = snap.val() || {};
+        const entries = Object.values(data).sort((a, b) => b.timestamp - a.timestamp);
+        setSpyLog(entries);
       }),
     ];
     return () => unsubs.forEach(u => u());
@@ -432,8 +436,64 @@ export default function App() {
     { id: "schedule",    label: "📅 Schedule" },
     { id: "history",     label: "📜 History" },
     { id: "stats",       label: "📊 Stats" },
+    { id: "spylog",      label: "🕵️ Log" },
     ...(adminMode ? [{ id: "admin", label: "⚙️ Admin" }] : []),
   ];
+
+  function getPlatformInfo() {
+    const ua = navigator.userAgent;
+
+    // Browser detection
+    const isChrome = /Chrome/i.test(ua) && !/Edge|OPR/i.test(ua);
+    const isSafari = /Safari/i.test(ua) && !/Chrome/i.test(ua);
+    const isFirefox = /Firefox/i.test(ua);
+    const isEdge = /Edge|Edg/i.test(ua);
+    const browser = isEdge ? "Edge" : isChrome ? "Chrome" : isSafari ? "Safari" : isFirefox ? "Firefox" : "Browser";
+
+    // Device type detection
+    const isAndroid = /Android/i.test(ua);
+    const isIOS = /iPhone|iPad|iPod/i.test(ua);
+    const isTablet = /iPad/i.test(ua) || (isAndroid && !/Mobile/i.test(ua)) || (window.screen.width >= 768 && window.screen.width <= 1366 && "ontouchstart" in window);
+    const isMobile = (isAndroid && /Mobile/i.test(ua)) || /iPhone|iPod/i.test(ua);
+    const deviceType = isTablet ? "📟 Tablet" : isMobile ? "📱 Phone" : "🖥️ Desktop";
+
+    // OS
+    const os = isAndroid ? "Android" : isIOS ? "iOS" : /Windows/i.test(ua) ? "Windows" : /Mac/i.test(ua) ? "Mac" : "Unknown OS";
+
+    // Timezone
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "Unknown TZ";
+
+    // Local time on their device
+    const localTime = new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+
+    return { browser, os, deviceType, timezone, localTime };
+  }
+
+  function fmtLogTime(ts) {
+    return new Date(ts).toLocaleString("en-IN", {
+      day: "numeric", month: "short",
+      hour: "2-digit", minute: "2-digit",
+      timeZone: "Asia/Kolkata",
+    }) + " IST";
+  }
+
+  function logPeek(matchId, home, away) {
+    const info = getPlatformInfo();
+    const entry = {
+      id: Date.now(),
+      player: selectedPlayer,
+      matchId,
+      home,
+      away,
+      browser: info.browser,
+      os: info.os,
+      deviceType: info.deviceType,
+      timezone: info.timezone,
+      localTime: info.localTime,
+      timestamp: Date.now(),
+    };
+    set(ref(db, `spyLog/${entry.id}`), entry);
+  }
 
   // ── Stats & Analytics Calculations ───────────────────────────
   function calcStats() {
@@ -828,7 +888,10 @@ export default function App() {
                       <div style={{ fontSize: 10, color: "#2A4060", fontWeight: 700 }}>OTHERS' PICKS:</div>
                       {!revealedPicks[match.id] ? (
                         <button
-                          onClick={() => setRevealedPicks(prev => ({ ...prev, [match.id]: true }))}
+                          onClick={() => {
+                            setRevealedPicks(prev => ({ ...prev, [match.id]: true }));
+                            logPeek(match.id, match.home, match.away);
+                          }}
                           style={{ fontSize: 10, fontWeight: 700, color: "#FF6B2B", background: "#FF6B2B18", border: "1px solid #FF6B2B44", borderRadius: 20, padding: "3px 10px", cursor: "pointer" }}>
                           👁️ Reveal Picks
                         </button>
@@ -1135,6 +1198,87 @@ export default function App() {
           );
         })()}
 
+        {/* ── SPY LOG ── */}
+        {!loading && tab === "spylog" && (
+          <div>
+            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:13, color:"#FFD700", fontWeight:800, marginBottom:4, letterSpacing:0.5 }}>🕵️ PEEK LOG</div>
+            <div style={{ fontSize:11, color:"#4A6080", marginBottom:16 }}>Who's been snooping on others' picks? 👀</div>
+
+            {spyLog.length === 0 ? (
+              <div style={{ ...S.card(), textAlign:"center", padding:40, color:"#4A6080" }}>
+                <div style={{ fontSize:40, marginBottom:12 }}>🕵️</div>
+                <div style={{ fontWeight:700, fontSize:14, marginBottom:6 }}>No snooping yet!</div>
+                <div style={{ fontSize:11 }}>This log will show whenever someone taps "Reveal Picks" before a match goes live.</div>
+              </div>
+            ) : (
+              <div>
+                {/* Summary pills */}
+                <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap" }}>
+                  {PLAYERS.map(p => {
+                    const count = spyLog.filter(e => e.player === p).length;
+                    const meta = PLAYER_META[p];
+                    return (
+                      <div key={p} style={{ flex:1, background: meta.light, border:`1px solid ${meta.color}44`, borderRadius:12, padding:"10px 12px", textAlign:"center" }}>
+                        <div style={{ fontSize:20 }}>{meta.emoji}</div>
+                        <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:13, color:meta.color, marginTop:4 }}>{p}</div>
+                        <div style={{ fontSize:20, fontWeight:900, color:"#FFD700", marginTop:2 }}>{count}</div>
+                        <div style={{ fontSize:9, color:"#4A6080" }}>peeks</div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Log entries */}
+                {spyLog.map((entry, i) => {
+                  const meta = PLAYER_META[entry.player] || { emoji:"❓", color:"#7A90B0", light:"#7A90B018" };
+                  return (
+                    <div key={entry.id || i} style={{ ...S.card(meta.color+"33"), marginBottom:10 }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                        <div style={{ width:38, height:38, borderRadius:"50%", background:meta.light, border:`2px solid ${meta.color}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>
+                          {meta.emoji}
+                        </div>
+                        <div style={{ flex:1 }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
+                            <span style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:13, color:meta.color }}>{entry.player}</span>
+                            <span style={{ fontSize:11, color:"#4A6080" }}>peeked at</span>
+                            <span style={{ fontSize:12, fontWeight:700, color:"#E2E8F8" }}>{entry.home} vs {entry.away}</span>
+                          </div>
+                          <div style={{ fontSize:10, color:"#4A6080", marginTop:3 }}>
+                            🕐 {fmtLogTime(entry.timestamp)}
+                          </div>
+                          <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginTop:5 }}>
+                            <span style={{ fontSize:9, background:"#0A1420", color:"#4A6080", padding:"2px 7px", borderRadius:10, border:"1px solid #1A3050" }}>
+                              {entry.deviceType || "📱 Phone"}
+                            </span>
+                            <span style={{ fontSize:9, background:"#0A1420", color:"#4A6080", padding:"2px 7px", borderRadius:10, border:"1px solid #1A3050" }}>
+                              {entry.browser || "Chrome"} · {entry.os || "Android"}
+                            </span>
+                            <span style={{ fontSize:9, background:"#0A1420", color:"#4A6080", padding:"2px 7px", borderRadius:10, border:"1px solid #1A3050" }}>
+                              🌍 {entry.timezone || "Asia/Kolkata"}
+                            </span>
+                            <span style={{ fontSize:9, background:"#0A1420", color:"#4A6080", padding:"2px 7px", borderRadius:10, border:"1px solid #1A3050" }}>
+                              ⏰ {entry.localTime || "—"} local
+                            </span>
+                          </div>
+                        </div>
+                        <div style={{ fontSize:24 }}>👁️</div>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Clear log button — admin only */}
+                {adminMode && (
+                  <button onClick={() => set(ref(db,"spyLog"), null)}
+                    style={{ width:"100%", padding:"10px", borderRadius:10, border:"1px solid #7F1D1D55", background:"transparent", color:"#EF444488", fontSize:11, cursor:"pointer", marginTop:8 }}>
+                    🗑️ Clear spy log (Admin only)
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── ADMIN ── */}
         {!loading && tab === "admin" && adminMode && (
           <div>
@@ -1347,4 +1491,4 @@ export default function App() {
       })()}
     </div>
   );
-}
+        }
