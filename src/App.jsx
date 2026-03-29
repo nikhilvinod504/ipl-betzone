@@ -495,12 +495,20 @@ export default function App() {
 
   async function setManualResult(matchId, winner, tossWinner, status = "completed") {
     const key = fbKey(matchId);
-    const payload = { status };
+    // Always read existing data first so we never overwrite fields we didn't mean to change
+    const existing = manualResults[key] || {};
+    const payload = {
+      ...existing,          // keep all existing fields (autoLocked, autoLockedAt etc)
+      status,
+    };
     if (winner) payload.winner = winner;
+    else if (existing.winner) payload.winner = existing.winner; // preserve existing winner
     if (tossWinner) payload.tossWinner = tossWinner;
+    else if (existing.tossWinner) payload.tossWinner = existing.tossWinner; // preserve existing toss
     await set(ref(db, `manualResults/${key}`), payload);
-    if (status === "live") notify("🔒 Bets locked! Match is live.");
+    if (status === "live" && !winner) notify("🔒 Bets locked! Match is live.");
     else if (status === "completed" && winner) notify(`🏆 ${winner} set as winner! Points updated.`);
+    else if (tossWinner) notify(`🪙 Toss winner set: ${tossWinner}!`);
     else notify("✅ Saved!");
   }
 
@@ -979,7 +987,7 @@ export default function App() {
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <TeamBadge short={match.home} />
-                  <div style={{ flex: 1, textAlign: "center", fontSize: 11, color: "#FCA5A5" }}>{m.home} vs {m.away} — Bets locked</div>
+                  <div style={{ flex: 1, textAlign: "center", fontSize: 11, color: "#FCA5A5" }}>{match.home} vs {match.away} — Bets locked</div>
                   <TeamBadge short={match.away} />
                 </div>
                 <div style={{ marginTop: 10, fontSize: 11, color: "#4A6080", textAlign: "center" }}>Betting closed — match is live!</div>
@@ -1837,4 +1845,4 @@ export default function App() {
       })()}
     </div>
   );
-    }
+}
