@@ -440,6 +440,29 @@ export default function App() {
     ...(adminMode ? [{ id: "admin", label: "⚙️ Admin" }] : []),
   ];
 
+  // ── Known device profiles ─────────────────────────────────────
+  // Americas + iOS     = Mitthu
+  // Americas + Android = Megs
+  // Asia    + Android  = Nakel
+  const DEVICE_PROFILES = [
+    { match: (tz, os) => isAmericas(tz) && os === "iOS",     likely: "Mitthu", confidence: "🎯 Likely Mitthu" },
+    { match: (tz, os) => isAmericas(tz) && os === "Android", likely: "Megs",   confidence: "🎯 Likely Megs" },
+    { match: (tz, os) => isAsia(tz)     && os === "Android", likely: "Nakel",  confidence: "🎯 Likely Nakel" },
+  ];
+
+  function isAmericas(tz = "") {
+    return /America|US\/|Canada\/|Mexico\//i.test(tz);
+  }
+
+  function isAsia(tz = "") {
+    return /Asia\/|India|Kolkata|IST/i.test(tz);
+  }
+
+  function guessIdentity(timezone, os) {
+    const profile = DEVICE_PROFILES.find(p => p.match(timezone, os));
+    return profile ? profile : { likely: null, confidence: "❓ Unknown device" };
+  }
+
   function getPlatformInfo() {
     const ua = navigator.userAgent;
 
@@ -466,7 +489,10 @@ export default function App() {
     // Local time on their device
     const localTime = new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
 
-    return { browser, os, deviceType, timezone, localTime };
+    // Guess who this device belongs to
+    const guess = guessIdentity(timezone, os);
+
+    return { browser, os, deviceType, timezone, localTime, likelyUser: guess.likely, confidence: guess.confidence };
   }
 
   function fmtLogTime(ts) {
@@ -477,11 +503,16 @@ export default function App() {
     }) + " IST";
   }
 
-  function logPeek(matchId, home, away) {
+  function logAction(type, matchId, home, away, claimedAs = null) {
     const info = getPlatformInfo();
+    const ts = Date.now();
+    // Flag if claimed identity doesn't match device profile
+    const mismatch = claimedAs && info.likelyUser && info.likelyUser !== claimedAs;
     const entry = {
-      id: Date.now(),
+      id: ts,
+      type,
       player: selectedPlayer,
+      claimedAs,
       matchId,
       home,
       away,
@@ -490,10 +521,18 @@ export default function App() {
       deviceType: info.deviceType,
       timezone: info.timezone,
       localTime: info.localTime,
-      timestamp: Date.now(),
+      likelyUser: info.likelyUser || "Unknown",
+      confidence: info.confidence,
+      mismatch: mismatch || false,
+      timestamp: ts,
     };
-    set(ref(db, `spyLog/${entry.id}`), entry);
+    set(ref(db, `spyLog/${ts}`), entry);
   }
+
+  // Convenience wrappers
+  function logPeek(matchId, home, away) { logAction("peek", matchId, home, away); }
+  function logIdentityConfirm(matchId, home, away) { logAction("identity_confirm", matchId, home, away, selectedPlayer); }
+  function logMatchExpand(matchId, home, away) { logAction("match_expand", matchId, home, away); }
 
   // ── Stats & Analytics Calculations ───────────────────────────
   function calcStats() {
@@ -1215,14 +1254,19 @@ export default function App() {
                 {/* Summary pills */}
                 <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap" }}>
                   {PLAYERS.map(p => {
-                    const count = spyLog.filter(e => e.player === p).length;
+                    const peeks    = spyLog.filter(e => e.player === p && e.type === "peek").length;
+                    const confirms = spyLog.filter(e => e.player === p && e.type === "identity_confirm").length;
+                    const opens    = spyLog.filter(e => e.player === p && e.type === "match_expand").length;
                     const meta = PLAYER_META[p];
                     return (
-                      <div key={p} style={{ flex:1, background: meta.light, border:`1px solid ${meta.color}44`, borderRadius:12, padding:"10px 12px", textAlign:"center" }}>
+                      <div key={p} style={{ flex:1, background: meta.light, border:`1px solid ${meta.color}44`, borderRadius:12, padding:"10px 8px", textAlign:"center" }}>
                         <div style={{ fontSize:20 }}>{meta.emoji}</div>
-                        <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:13, color:meta.color, marginTop:4 }}>{p}</div>
-                        <div style={{ fontSize:20, fontWeight:900, color:"#FFD700", marginTop:2 }}>{count}</div>
-                        <div style={{ fontSize:9, color:"#4A6080" }}>peeks</div>
+                        <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:12, color:meta.color, marginTop:4 }}>{p}</div>
+                        <div style={{ marginTop:6, display:"flex", flexDirection:"column", gap:2 }}>
+                          <div style={{ fontSize:9, color:"#FF6B2B" }}>👁️ {peeks} peeks</div>
+                          <div style={{ fontSize:9, color:"#22C55E" }}>✅ {confirms} confirms</div>
+                          <div style={{ fontSize:9, color:"#00C2FF" }}>🔓 {opens} opens</div>
+                        </div>
                       </div>
                     );
                   })}
@@ -1232,38 +1276,76 @@ export default function App() {
                 {spyLog.map((entry, i) => {
                   const meta = PLAYER_META[entry.player] || { emoji:"❓", color:"#7A90B0", light:"#7A90B018" };
                   return (
-                    <div key={entry.id || i} style={{ ...S.card(meta.color+"33"), marginBottom:10 }}>
-                      <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                        <div style={{ width:38, height:38, borderRadius:"50%", background:meta.light, border:`2px solid ${meta.color}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>
-                          {meta.emoji}
+                    {(() => {
+                      const typeConfig = {
+                        peek:              { icon:"👁️", label:"peeked at picks for",   color:"#FF6B2B", bg:"#FF6B2B18" },
+                        identity_confirm:  { icon:"✅", label:"confirmed as",           color:"#22C55E", bg:"#22C55E18" },
+                        match_expand:      { icon:"🔓", label:"opened betting view for", color:"#00C2FF", bg:"#00C2FF18" },
+                      };
+                      const tc = typeConfig[entry.type] || typeConfig.peek;
+                      return (
+                        <div key={entry.id || i} style={{ ...S.card(meta.color+"33"), marginBottom:10 }}>
+                          {/* Event type badge */}
+                          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                            <span style={{ fontSize:9, fontWeight:700, padding:"2px 8px", borderRadius:10, background:tc.bg, color:tc.color, border:`1px solid ${tc.color}44` }}>
+                              {tc.icon} {entry.type === "identity_confirm" ? "IDENTITY CONFIRMED" : entry.type === "match_expand" ? "MATCH OPENED" : "PEEKED AT PICKS"}
+                            </span>
+                            <span style={{ fontSize:10, color:"#4A6080" }}>🕐 {fmtLogTime(entry.timestamp)}</span>
+                          </div>
+                          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                            <div style={{ width:38, height:38, borderRadius:"50%", background:meta.light, border:`2px solid ${meta.color}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>
+                              {meta.emoji}
+                            </div>
+                            <div style={{ flex:1 }}>
+                              <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
+                                <span style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:13, color:meta.color }}>{entry.player}</span>
+                                <span style={{ fontSize:11, color:"#4A6080" }}>{tc.label}</span>
+                                {entry.type === "identity_confirm" ? (
+                                  <span style={{ fontSize:12, fontWeight:700, color:"#22C55E" }}>{entry.claimedAs}</span>
+                                ) : (
+                                  <span style={{ fontSize:12, fontWeight:700, color:"#E2E8F8" }}>{entry.home} vs {entry.away}</span>
+                                )}
+                              </div>
+                              {entry.type === "identity_confirm" && (
+                                <div style={{ fontSize:10, color:"#4A6080", marginTop:2 }}>
+                                  for match: {entry.home} vs {entry.away}
+                                </div>
+                              )}
+                              {/* Identity mismatch alert */}
+                              {entry.mismatch && (
+                                <div style={{ marginTop:6, padding:"6px 10px", borderRadius:8, background:"#7F1D1D33", border:"1px solid #EF444466", fontSize:10, color:"#EF4444", fontWeight:700 }}>
+                                  ⚠️ MISMATCH! Claimed <b>{entry.claimedAs}</b> but device = <b>{entry.likelyUser}</b>!
+                                </div>
+                              )}
+                              {/* Device identity match */}
+                              {entry.likelyUser && !entry.mismatch && (
+                                <div style={{ marginTop:5, fontSize:9, color:"#22C55E", fontWeight:700 }}>
+                                  🎯 Device matches {entry.likelyUser}'s profile ✓
+                                </div>
+                              )}
+                              {!entry.likelyUser && (
+                                <div style={{ marginTop:5, fontSize:9, color:"#4A6080", fontStyle:"italic" }}>❓ Unknown device profile</div>
+                              )}
+                              <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginTop:6 }}>
+                                <span style={{ fontSize:9, background:"#0A1420", color:"#4A6080", padding:"2px 7px", borderRadius:10, border:"1px solid #1A3050" }}>
+                                  {entry.deviceType || "📱 Phone"}
+                                </span>
+                                <span style={{ fontSize:9, background:"#0A1420", color:"#4A6080", padding:"2px 7px", borderRadius:10, border:"1px solid #1A3050" }}>
+                                  {entry.browser || "Chrome"} · {entry.os || "Android"}
+                                </span>
+                                <span style={{ fontSize:9, background:"#0A1420", color:"#4A6080", padding:"2px 7px", borderRadius:10, border:"1px solid #1A3050" }}>
+                                  🌍 {entry.timezone || "Asia/Kolkata"}
+                                </span>
+                                <span style={{ fontSize:9, background:"#0A1420", color:"#4A6080", padding:"2px 7px", borderRadius:10, border:"1px solid #1A3050" }}>
+                                  ⏰ {entry.localTime || "—"} local
+                                </span>
+                              </div>
+                            </div>
+                            <div style={{ fontSize:24 }}>{tc.icon}</div>
+                          </div>
                         </div>
-                        <div style={{ flex:1 }}>
-                          <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
-                            <span style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:13, color:meta.color }}>{entry.player}</span>
-                            <span style={{ fontSize:11, color:"#4A6080" }}>peeked at</span>
-                            <span style={{ fontSize:12, fontWeight:700, color:"#E2E8F8" }}>{entry.home} vs {entry.away}</span>
-                          </div>
-                          <div style={{ fontSize:10, color:"#4A6080", marginTop:3 }}>
-                            🕐 {fmtLogTime(entry.timestamp)}
-                          </div>
-                          <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginTop:5 }}>
-                            <span style={{ fontSize:9, background:"#0A1420", color:"#4A6080", padding:"2px 7px", borderRadius:10, border:"1px solid #1A3050" }}>
-                              {entry.deviceType || "📱 Phone"}
-                            </span>
-                            <span style={{ fontSize:9, background:"#0A1420", color:"#4A6080", padding:"2px 7px", borderRadius:10, border:"1px solid #1A3050" }}>
-                              {entry.browser || "Chrome"} · {entry.os || "Android"}
-                            </span>
-                            <span style={{ fontSize:9, background:"#0A1420", color:"#4A6080", padding:"2px 7px", borderRadius:10, border:"1px solid #1A3050" }}>
-                              🌍 {entry.timezone || "Asia/Kolkata"}
-                            </span>
-                            <span style={{ fontSize:9, background:"#0A1420", color:"#4A6080", padding:"2px 7px", borderRadius:10, border:"1px solid #1A3050" }}>
-                              ⏰ {entry.localTime || "—"} local
-                            </span>
-                          </div>
-                        </div>
-                        <div style={{ fontSize:24 }}>👁️</div>
-                      </div>
-                    </div>
+                      );
+                    })()}
                   );
                 })}
 
@@ -1480,7 +1562,15 @@ export default function App() {
                   style={{ flex: 1, padding: "12px", borderRadius: 12, border: "1px solid #1A3050", background: "#0A1420", color: "#7A90B0", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
                   ✗ Cancel
                 </button>
-                <button onClick={() => { setExpandedMatch(matchConfirm); setMatchConfirm(null); }}
+                <button onClick={() => {
+                  const m = matches.find(x => x.id === matchConfirm);
+                  if (m) {
+                    logIdentityConfirm(m.id, m.home, m.away);
+                    logMatchExpand(m.id, m.home, m.away);
+                  }
+                  setExpandedMatch(matchConfirm);
+                  setMatchConfirm(null);
+                }}
                   style={{ flex: 1, padding: "12px", borderRadius: 12, border: "none", background: meta.color, color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
                   ✓ Yes, it's me!
                 </button>
@@ -1491,4 +1581,4 @@ export default function App() {
       })()}
     </div>
   );
-        }
+                  }
