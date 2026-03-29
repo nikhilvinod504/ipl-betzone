@@ -168,8 +168,8 @@ function teamShort(name = "") {
 function fmtDate(dateStr) {
   if (!dateStr) return "";
   try {
-    return new Date(dateStr).toLocaleDateString("en-IN", {
-      day: "numeric", month: "short", year: "numeric",
+    return new Date(dateStr).toLocaleDateString(undefined, {
+      day: "numeric", month: "short",
     });
   } catch { return dateStr; }
 }
@@ -177,9 +177,40 @@ function fmtDate(dateStr) {
 function fmtTime(dateStr) {
   if (!dateStr) return "";
   try {
-    return new Date(dateStr).toLocaleTimeString("en-IN", {
+    // Use device's local timezone — Mitthu/Megs in Americas see their local time
+    return new Date(dateStr).toLocaleTimeString(undefined, {
+      hour: "2-digit", minute: "2-digit", timeZoneName: "short",
+    });
+  } catch { return ""; }
+}
+
+// Shows match time in local TZ with IST reference
+function fmtMatchTime(rawDate) {
+  if (!rawDate) return "";
+  try {
+    const d = new Date(rawDate);
+    const localTZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+    const isIndia = localTZ.includes("Kolkata") || localTZ.includes("India");
+    const ist = d.toLocaleTimeString("en-IN", {
       hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata",
-    }) + " IST";
+    });
+    // If phone is in India — just show IST cleanly
+    if (isIndia) return `${ist} IST`;
+    // For anyone outside India — show their local time AND IST
+    const local = d.toLocaleTimeString(undefined, {
+      hour: "2-digit", minute: "2-digit", timeZoneName: "short",
+    });
+    return `${local}
+(${ist} IST)`;
+  } catch { return ""; }
+}
+
+function fmtMatchDate(rawDate) {
+  if (!rawDate) return "";
+  try {
+    return new Date(rawDate).toLocaleDateString(undefined, {
+      day: "numeric", month: "short",
+    });
   } catch { return ""; }
 }
 
@@ -295,6 +326,35 @@ export default function App() {
     setMatchConfirm(null);
     setRevealedPicks({});
   }, [selectedPlayer, tab]);
+
+  // ── Auto-lock: check every 5 mins if any match is within 30 mins ──
+  useEffect(() => {
+    function checkAutoLock() {
+      const now = Date.now();
+      const schedule = getPlaceholderMatches();
+      schedule.forEach(match => {
+        const matchTime = new Date(match.rawDate).getTime();
+        const minsUntil = (matchTime - now) / 60000;
+        const key = match.id.replace(/[^a-zA-Z0-9_]/g, "_");
+        // Lock if within 30 mins and not already locked by admin
+        if (minsUntil <= 60 && minsUntil > -60) {
+          // Only auto-lock if no manual result exists yet
+          const existing = manualResults[key];
+          if (!existing || existing.status === "upcoming") {
+            set(ref(db, `manualResults/${key}`), {
+              status: "live",
+              autoLocked: true,
+              autoLockedAt: now,
+            });
+          }
+        }
+      });
+    }
+    // Run immediately and then every 5 minutes
+    checkAutoLock();
+    const interval = setInterval(checkAutoLock, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [manualResults]);
 
 
   function getPlaceholderMatches() {
@@ -900,8 +960,10 @@ export default function App() {
             {liveMatches.map(match => (
               <div key={match.id} style={{ ...S.card("#EF444433"), borderLeft: "3px solid #EF4444" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-                  <span style={{ fontSize: 10, color: "#EF4444", fontWeight: 700 }}>🔴 LIVE NOW</span>
-                  <span style={{ fontSize: 10, color: "#4A6080" }}>{match.venue}</span>
+                  <span style={{ fontSize: 10, color: "#EF4444", fontWeight: 700 }}>
+                    {manualResults[fbKey(match.id)]?.autoLocked ? "⚡ AUTO-LOCKED" : "🔴 BETS LOCKED"}
+                  </span>
+                  <span style={{ fontSize: 10, color: "#4A6080" }}>{match.venue?.split(",")[0]}</span>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <TeamBadge short={match.home} />
@@ -942,7 +1004,7 @@ export default function App() {
                         <span style={{ fontSize: 10, color: "#FF6B2B", fontWeight: 700 }}>VS</span>
                         <span style={{ fontSize: 12, fontWeight: 800, color: "#E2E8F8" }}>{match.away}</span>
                       </div>
-                      <div style={{ fontSize: 10, color: "#4A6080", marginTop: 2 }}>📅 {match.date} · {match.time}</div>
+                      <div style={{ fontSize: 10, color: "#4A6080", marginTop: 2 }}>📅 {fmtMatchDate(match.rawDate)} · {fmtMatchTime(match.rawDate)}</div>
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
                       {/* Show only whether bet exists — never reveal the team name */}
@@ -976,7 +1038,9 @@ export default function App() {
                           <div style={{ fontSize: 9, color: "#4A6080", textAlign: "center" }}>{IPL_TEAMS[match.away]?.name || match.away}</div>
                         </div>
                       </div>
-                      <div style={{ fontSize: 10, color: "#2A4060", textAlign: "center", marginBottom: 14 }}>🏟 {match.venue.split(",")[0]}</div>
+                      <div style={{ fontSize: 10, color: "#2A4060", textAlign: "center", marginBottom: 14 }}>
+                        🏟 {match.venue.split(",")[0]} · {fmtMatchTime(match.rawDate)}
+                      </div>
 
                   {/* Winner pick */}
                   <div style={{ marginBottom: 10 }}>
@@ -1095,7 +1159,7 @@ export default function App() {
               return (
                 <div key={match.id} style={{ ...S.card(status === "live" ? "#EF444433" : "#1A3050"), opacity: status === "completed" ? 0.75 : 1 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                    <span style={{ fontSize: 10, color: "#4A6080" }}>Match {idx + 1} · {match.date}</span>
+                    <span style={{ fontSize: 10, color: "#4A6080" }}>Match {idx + 1} · {fmtMatchDate(match.rawDate)}</span>
                     <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: status === "live" ? "#EF444422" : status === "completed" ? "#14532D22" : "#FF6B2B22", color: status === "live" ? "#EF4444" : status === "completed" ? "#22C55E" : "#FF6B2B" }}>
                       {status === "live" ? "🔴 LIVE" : status === "completed" ? "✅ Done" : "🕐 Soon"}
                     </span>
@@ -1107,7 +1171,7 @@ export default function App() {
                     </div>
                     <div style={{ flex: 1, textAlign: "center" }}>
                       <div style={{ fontSize: 12, fontWeight: 800, color: winner ? "#FFD700" : "#E2E8F8" }}>
-                        {status === "completed" ? `${winner} won` : status === "live" ? "In Progress 🔴" : `${match.time}`}
+                        {status === "completed" ? `${winner} won` : status === "live" ? "In Progress 🔴" : fmtMatchTime(match.rawDate)}
                       </div>
                       <div style={{ fontSize: 9, color: "#2A4060", marginTop: 2 }}>🏟 {match.venue.split(",")[0]}</div>
                     </div>
@@ -1158,7 +1222,7 @@ export default function App() {
               return (
                 <div key={match.id} style={S.card()}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-                    <span style={{ fontSize: 11, color: "#4A6080" }}>{match.date}</span>
+                    <span style={{ fontSize: 11, color: "#4A6080" }}>{fmtMatchDate(match.rawDate)}</span>
                     <span style={{ fontSize: 11, color: "#FFD700", fontWeight: 700 }}>🏆 {winner} won{tossWinner ? ` · 🪙 ${tossWinner} toss` : ""}</span>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
@@ -1483,7 +1547,7 @@ export default function App() {
                   </div>
 
                   <div style={{ fontSize: 10, color: "#2A4060", marginBottom: 10 }}>
-                    📅 {match.date} · {match.time} · {match.venue.split(",")[0]}
+                    📅 {fmtMatchDate(match.rawDate)} · {fmtMatchTime(match.rawDate)} · {match.venue.split(",")[0]}
                   </div>
 
                   {/* Winner display if done */}
@@ -1504,10 +1568,21 @@ export default function App() {
                         </button>
                       )}
 
-                      {/* Unlock button if locked but no winner yet */}
+                      {/* Locked state — show auto or manual lock + unlock option */}
                       {status === "live" && (
-                        <div style={{ background: "#7F1D1D18", border: "1px solid #EF444433", borderRadius: 8, padding: "8px 12px", marginBottom: 8, fontSize: 11, color: "#FCA5A5" }}>
-                          🔴 Bets locked! Set the winner after the match ends.
+                        <div style={{ marginBottom: 8 }}>
+                          <div style={{ background: "#7F1D1D18", border: "1px solid #EF444433", borderRadius: 8, padding: "8px 12px", marginBottom: 6, fontSize: 11, color: "#FCA5A5" }}>
+                            {manual.autoLocked ? (
+                              <span>⚡ Auto-locked 1 hour before match · Set winner below when done</span>
+                            ) : (
+                              <span>🔴 Manually locked · Set winner below when done</span>
+                            )}
+                          </div>
+                          {/* Admin unlock button */}
+                          <button onClick={() => set(ref(db, `manualResults/${fbKey(match.id)}`), null)}
+                            style={{ width: "100%", padding: "7px", borderRadius: 8, border: "1px solid #FFD70055", background: "#FFD70011", color: "#FFD700", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                            🔓 Unlock Bets (Admin Override)
+                          </button>
                         </div>
                       )}
 
@@ -1750,4 +1825,4 @@ export default function App() {
       })()}
     </div>
   );
-      }
+}
