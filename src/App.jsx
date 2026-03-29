@@ -531,8 +531,6 @@ export default function App() {
 
   // Convenience wrappers
   function logPeek(matchId, home, away) { logAction("peek", matchId, home, away); }
-  function logIdentityConfirm(matchId, home, away) { logAction("identity_confirm", matchId, home, away, selectedPlayer); }
-  function logMatchExpand(matchId, home, away) { logAction("match_expand", matchId, home, away); }
 
   // ── Stats & Analytics Calculations ───────────────────────────
   function calcStats() {
@@ -1246,17 +1244,16 @@ export default function App() {
             {spyLog.length === 0 ? (
               <div style={{ ...S.card(), textAlign:"center", padding:40, color:"#4A6080" }}>
                 <div style={{ fontSize:40, marginBottom:12 }}>🕵️</div>
-                <div style={{ fontWeight:700, fontSize:14, marginBottom:6 }}>No snooping yet!</div>
-                <div style={{ fontSize:11 }}>This log will show whenever someone taps "Reveal Picks" before a match goes live.</div>
+                <div style={{ fontWeight:700, fontSize:14, marginBottom:6 }}>All clean so far! 🎉</div>
+                <div style={{ fontSize:11, lineHeight:1.6 }}>Log only records:<br/>👁️ Peeking at others picks<br/>⚠️ Device mismatches</div>
               </div>
             ) : (
               <div>
                 {/* Summary pills */}
                 <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap" }}>
                   {PLAYERS.map(p => {
-                    const peeks    = spyLog.filter(e => e.player === p && e.type === "peek").length;
-                    const confirms = spyLog.filter(e => e.player === p && e.type === "identity_confirm").length;
-                    const opens    = spyLog.filter(e => e.player === p && e.type === "match_expand").length;
+                    const peeks     = spyLog.filter(e => e.player === p && e.type === "peek").length;
+                    const mismatches = spyLog.filter(e => e.player === p && e.type === "identity_confirm").length;
                     const meta = PLAYER_META[p];
                     return (
                       <div key={p} style={{ flex:1, background: meta.light, border:`1px solid ${meta.color}44`, borderRadius:12, padding:"10px 8px", textAlign:"center" }}>
@@ -1264,8 +1261,7 @@ export default function App() {
                         <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:12, color:meta.color, marginTop:4 }}>{p}</div>
                         <div style={{ marginTop:6, display:"flex", flexDirection:"column", gap:2 }}>
                           <div style={{ fontSize:9, color:"#FF6B2B" }}>👁️ {peeks} peeks</div>
-                          <div style={{ fontSize:9, color:"#22C55E" }}>✅ {confirms} confirms</div>
-                          <div style={{ fontSize:9, color:"#00C2FF" }}>🔓 {opens} opens</div>
+                          <div style={{ fontSize:9, color:"#EF4444" }}>⚠️ {mismatches} mismatches</div>
                         </div>
                       </div>
                     );
@@ -1276,16 +1272,15 @@ export default function App() {
                 {spyLog.map((entry, i) => {
                   const meta = PLAYER_META[entry.player] || { emoji:"❓", color:"#7A90B0", light:"#7A90B018" };
                   const typeConfig = {
-                    peek:             { icon:"👁️", label:"peeked at picks for",    color:"#FF6B2B", bg:"#FF6B2B18" },
-                    identity_confirm: { icon:"✅",  label:"confirmed as",            color:"#22C55E", bg:"#22C55E18" },
-                    match_expand:     { icon:"🔓", label:"opened betting view for", color:"#00C2FF", bg:"#00C2FF18" },
+                    peek:             { icon:"👁️", label:"peeked at others' picks for", color:"#FF6B2B", bg:"#FF6B2B18" },
+                    identity_confirm: { icon:"⚠️", label:"claimed to be",               color:"#EF4444", bg:"#EF444418" },
                   };
                   const tc = typeConfig[entry.type] || typeConfig.peek;
                   return (
                     <div key={entry.id || i} style={{ ...S.card(meta.color+"33"), marginBottom:10 }}>
                       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
                         <span style={{ fontSize:9, fontWeight:700, padding:"2px 8px", borderRadius:10, background:tc.bg, color:tc.color, border:`1px solid ${tc.color}44` }}>
-                          {tc.icon} {entry.type === "identity_confirm" ? "IDENTITY CONFIRMED" : entry.type === "match_expand" ? "MATCH OPENED" : "PEEKED AT PICKS"}
+                          {tc.icon} {entry.type === "identity_confirm" ? "⚠️ IDENTITY MISMATCH" : "👁️ PEEKED AT PICKS"}
                         </span>
                         <span style={{ fontSize:10, color:"#4A6080" }}>🕐 {fmtLogTime(entry.timestamp)}</span>
                       </div>
@@ -1556,8 +1551,12 @@ export default function App() {
                 <button onClick={() => {
                   const m = matches.find(x => x.id === matchConfirm);
                   if (m) {
-                    logIdentityConfirm(m.id, m.home, m.away);
-                    logMatchExpand(m.id, m.home, m.away);
+                    // Only log if device profile doesn't match claimed identity (mismatch)
+                    const info = getPlatformInfo();
+                    const isMismatch = info.likelyUser && info.likelyUser !== selectedPlayer;
+                    if (isMismatch) {
+                      logAction("identity_confirm", m.id, m.home, m.away, selectedPlayer);
+                    }
                   }
                   setExpandedMatch(matchConfirm);
                   setMatchConfirm(null);
@@ -1572,4 +1571,4 @@ export default function App() {
       })()}
     </div>
   );
-                  }
+}
