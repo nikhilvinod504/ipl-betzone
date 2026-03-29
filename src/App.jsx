@@ -194,14 +194,13 @@ function fmtMatchTime(rawDate) {
     const ist = d.toLocaleTimeString("en-IN", {
       hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata",
     });
-    // If phone is in India — just show IST cleanly
+    // India — just show IST
     if (isIndia) return `${ist} IST`;
-    // For anyone outside India — show their local time AND IST
-    const local = d.toLocaleTimeString(undefined, {
+    // Outside India — show local time with TZ code + IST reference
+    const localWithTZ = d.toLocaleTimeString(undefined, {
       hour: "2-digit", minute: "2-digit", timeZoneName: "short",
     });
-    return `${local}
-(${ist} IST)`;
+    return `${localWithTZ} · ${ist} IST`;
   } catch { return ""; }
 }
 
@@ -1825,4 +1824,4 @@ export default function App() {
       })()}
     </div>
   );
-}
+         }
