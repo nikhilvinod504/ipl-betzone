@@ -191,19 +191,29 @@ function fmtMatchTime(rawDate) {
     const d = new Date(rawDate);
     const localTZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
     const isIndia = localTZ.includes("Kolkata") || localTZ.includes("India");
-    // IST time — always computed
+
+    // IST time always computed
     const ist = d.toLocaleTimeString("en-IN", {
       hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata",
     });
-    // India users — only show IST, nothing else
+
+    // India users — always just show IST, no GMT offset
     if (isIndia) return `${ist} IST`;
-    // Outside India — show local time with TZ code + IST reference
+
+    // Outside India — get local time (no TZ name, avoids GMT+X mess)
     const localTime = d.toLocaleTimeString(undefined, {
       hour: "2-digit", minute: "2-digit",
     });
-    const tzCode = d.toLocaleTimeString(undefined, { timeZoneName: "short" })
-      .split(" ").pop(); // Extract just the TZ code e.g. "EDT"
-    return `${localTime} ${tzCode} · ${ist} IST`;
+
+    // Get a clean TZ abbreviation (EDT, PDT etc) by parsing from a
+    // date string rather than using timeZoneName which gives GMT+X on Android
+    const tzStr = d.toLocaleString("en-US", { timeZoneName: "short" });
+    const tzMatch = tzStr.match(/([A-Z]{2,5})\s*$/);
+    const tzCode = tzMatch ? tzMatch[1] : "";
+
+    return tzCode
+      ? `${localTime} ${tzCode} · ${ist} IST`
+      : `${localTime} · ${ist} IST`;
   } catch { return ""; }
 }
 
