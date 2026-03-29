@@ -23,19 +23,28 @@ const db = getDatabase(firebaseApp);
 const PLAYERS = ["Nakel", "Mitthu", "Megs"];
 
 // ─── Avatar options ────────────────────────────────────────────────
-const AVATAR_EMOJIS = [
-  "🦁","🐯","🦅","🐻","🦊","🐺","🐲","🦁","🦈","🦋",
-  "🐸","🦉","🦁","🐼","🦁","🦄","🐯","🦂","🐉","🦁",
-  "⚡","🔥","💎","🌙","⭐","🏆","💀","🎯","🚀","💥",
-  "🎸","🎮","🏏","⚽","🏀","🎲","🃏","🎭","🎪","🎨",
+// Categorised avatar emojis — 100+ choices
+const AVATAR_EMOJI_LIST = [
+  // 😀 Smileys & Faces
+  "😀","😎","🤩","😈","👿","👻","💀","🎃","🤡","🥸",
+  "🤠","🧐","🥶","🤯","😤","🤑","🥳","😏","🫡","😤",
+  // 🐾 Wild Animals
+  "🦁","🐯","🐻","🦊","🐺","🦈","🐲","🦅","🦉","🐼",
+  "🦄","🦂","🐉","🦋","🐸","🦓","🦒","🐘","🦏","🐆",
+  "🦝","🦡","🐗","🦬","🦤","🦚","🦜","🐓","🦩","🦭",
+  // 🔥 Power & Elements
+  "⚡","🔥","💎","🌙","⭐","💀","🎯","🚀","💥","🌊",
+  "🌪","❄️","☄️","🌋","⚔️","🛡️","🗡️","💫","✨","🌟",
+  // 🏆 Sports & Games
+  "🏆","🏏","⚽","🏀","🏈","🎾","🏋️","🥊","🎲","🃏",
+  "♟️","🎮","🕹️","🎱","🏹","🥋","🤺","🏊","🧗","🎯",
+  // 🎭 Cool & Unique
+  "🤖","👽","🧠","🦸","🥷","🧙","🦹","🎭","💣","🔮",
+  "🕵️","🧬","🔬","⚗️","🎪","🎨","🎸","🎺","🥁","🎻",
+  // 🌍 Nature & Space
+  "🌈","🌺","🍀","🌵","🌴","🐚","🦀","🐬","🪐","🌍",
+  "☀️","🌕","🌠","🔭","🛸","🌌","🪄","🗺️","🌊","🏔️",
 ];
-// Deduplicate
-const AVATAR_EMOJI_LIST = [...new Set([
-  "🦁","🐯","🦅","🐻","🦊","🐺","🐲","🦈","🦋","🐸",
-  "🦉","🐼","🦄","🦂","🐉","🦁","⚡","🔥","💎","🌙",
-  "⭐","🏆","💀","🎯","🚀","💥","🎸","🎮","🏏","⚽",
-  "🏀","🎲","🃏","🎭","🎪","🎨","🤖","👽","🧠","🦸",
-])];
 
 const AVATAR_COLORS = [
   { color: "#FF6B2B", light: "#FF6B2B18", name: "Orange" },
@@ -797,13 +806,17 @@ export default function App() {
                 const rank = getRank(player);
                 const podiumHeights = { 1: 170, 2: 140, 3: 110 };
                 const podiumH = podiumHeights[rank] || 110;
-                const isCenter = idx === 1;
                 const meta = PLAYER_META[player];
+                // Size based on rank — tied players get same size
+                const isTop = rank === 1;
+                const emojiSize = isTop ? 32 : 22;
+                const nameSize = isTop ? 15 : 12;
+                const ptsSize  = isTop ? 30 : 22;
                 return (
                   <div key={player} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-                    <div style={{ fontSize: isCenter ? 32 : 22 }}>{meta.emoji}</div>
-                    <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: isCenter ? 15 : 12, color: meta.color }}>{player}</div>
-                    <div style={{ fontSize: isCenter ? 30 : 22, fontWeight: 900, color: "#FFD700", lineHeight: 1 }}>{pts[player]}</div>
+                    <div style={{ fontSize: emojiSize }}>{meta.emoji}</div>
+                    <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: nameSize, color: meta.color }}>{player}</div>
+                    <div style={{ fontSize: ptsSize, fontWeight: 900, color: "#FFD700", lineHeight: 1 }}>{pts[player]}</div>
                     <div style={{ fontSize: 9, color: "#4A6080" }}>pts</div>
                     <div style={{
                       width: "100%", height: podiumH, borderRadius: "8px 8px 0 0",
@@ -1625,16 +1638,28 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Emoji picker */}
+              {/* Emoji picker — categorised */}
               <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 11, color: "#4A6080", fontWeight: 700, letterSpacing: 0.5, marginBottom: 10 }}>CHOOSE EMOJI</div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(8, 1fr)", gap: 8, marginBottom: 20 }}>
-                {AVATAR_EMOJI_LIST.map(emoji => (
-                  <button key={emoji} onClick={() => setPickedEmoji(emoji)}
-                    style={{ aspectRatio: "1", borderRadius: 10, border: `2px solid ${pickedEmoji === emoji ? previewColor.color : "#1A3050"}`, background: pickedEmoji === emoji ? previewColor.light : "#0A1420", fontSize: 20, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    {emoji}
-                  </button>
-                ))}
-              </div>
+              {[
+                { label: "😀 Smileys & Faces",   range: [0, 20] },
+                { label: "🐾 Wild Animals",       range: [20, 50] },
+                { label: "🔥 Power & Elements",   range: [50, 70] },
+                { label: "🏆 Sports & Games",     range: [70, 90] },
+                { label: "🎭 Cool & Unique",      range: [90, 110] },
+                { label: "🌍 Nature & Space",     range: [110, 130] },
+              ].map(cat => (
+                <div key={cat.label} style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 10, color: "#4A6080", fontWeight: 700, marginBottom: 6 }}>{cat.label}</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(10, 1fr)", gap: 6 }}>
+                    {AVATAR_EMOJI_LIST.slice(cat.range[0], cat.range[1]).map(emoji => (
+                      <button key={emoji} onClick={() => setPickedEmoji(emoji)}
+                        style={{ aspectRatio: "1", borderRadius: 8, border: `2px solid ${pickedEmoji === emoji ? previewColor.color : "#1A3050"}`, background: pickedEmoji === emoji ? previewColor.light : "#0A1420", fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
 
               {/* Colour picker */}
               <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 11, color: "#4A6080", fontWeight: 700, letterSpacing: 0.5, marginBottom: 10 }}>CHOOSE COLOUR THEME</div>
@@ -1725,4 +1750,4 @@ export default function App() {
       })()}
     </div>
   );
-}
+      }
