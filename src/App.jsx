@@ -353,7 +353,7 @@ export default function App() {
           // Only auto-lock if no manual result exists yet
           const existing = manualResults[key];
           if (!existing || existing.status === "upcoming") {
-            set(ref(db, `manualResults/${key}`), {
+            update(ref(db, `manualResults/${key}`), {
               status: "live",
               autoLocked: true,
               autoLockedAt: now,
@@ -495,9 +495,9 @@ export default function App() {
 
   async function setManualResult(matchId, winner, tossWinner, status = "completed") {
     const key = fbKey(matchId);
-    // Use update() — only patches the specified fields, never wipes other fields
-    // This means setting toss winner won't clear autoLocked, and setting winner won't clear tossWinner
-    const patch = { status };
+    // update() patches ONLY the fields provided — never wipes autoLocked, tossWinner, etc.
+    const patch = {};
+    if (status)     patch.status     = status;
     if (winner)     patch.winner     = winner;
     if (tossWinner) patch.tossWinner = tossWinner;
     await update(ref(db, `manualResults/${key}`), patch);
@@ -1594,7 +1594,10 @@ export default function App() {
                             )}
                           </div>
                           {/* Admin unlock button */}
-                          <button onClick={() => set(ref(db, `manualResults/${fbKey(match.id)}`), null)}
+                          <button onClick={() => update(ref(db, `manualResults/${fbKey(match.id)}`), {
+                              status: "upcoming",
+                              autoLocked: false,
+                            })}
                             style={{ width: "100%", padding: "7px", borderRadius: 8, border: "1px solid #FFD70055", background: "#FFD70011", color: "#FFD700", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
                             🔓 Unlock Bets (Admin Override)
                           </button>
