@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { initializeApp } from "firebase/app";
-import { getDatabase, ref, onValue, set, get } from "firebase/database";
+import { getDatabase, ref, onValue, set, get, update } from "firebase/database";
 
 // ─── Firebase Config ───────────────────────────────────────────────
 const firebaseConfig = {
@@ -495,17 +495,12 @@ export default function App() {
 
   async function setManualResult(matchId, winner, tossWinner, status = "completed") {
     const key = fbKey(matchId);
-    // Always read existing data first so we never overwrite fields we didn't mean to change
-    const existing = manualResults[key] || {};
-    const payload = {
-      ...existing,          // keep all existing fields (autoLocked, autoLockedAt etc)
-      status,
-    };
-    if (winner) payload.winner = winner;
-    else if (existing.winner) payload.winner = existing.winner; // preserve existing winner
-    if (tossWinner) payload.tossWinner = tossWinner;
-    else if (existing.tossWinner) payload.tossWinner = existing.tossWinner; // preserve existing toss
-    await set(ref(db, `manualResults/${key}`), payload);
+    // Use update() — only patches the specified fields, never wipes other fields
+    // This means setting toss winner won't clear autoLocked, and setting winner won't clear tossWinner
+    const patch = { status };
+    if (winner)     patch.winner     = winner;
+    if (tossWinner) patch.tossWinner = tossWinner;
+    await update(ref(db, `manualResults/${key}`), patch);
     if (status === "live" && !winner) notify("🔒 Bets locked! Match is live.");
     else if (status === "completed" && winner) notify(`🏆 ${winner} set as winner! Points updated.`);
     else if (tossWinner) notify(`🪙 Toss winner set: ${tossWinner}!`);
