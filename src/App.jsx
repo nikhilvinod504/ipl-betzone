@@ -21,7 +21,43 @@ const db = getDatabase(firebaseApp);
 
 // ─── Constants ─────────────────────────────────────────────────────
 const PLAYERS = ["Nakel", "Mitthu", "Megs"];
-const PLAYER_META = {
+
+// ─── Avatar options ────────────────────────────────────────────────
+const AVATAR_EMOJIS = [
+  "🦁","🐯","🦅","🐻","🦊","🐺","🐲","🦁","🦈","🦋",
+  "🐸","🦉","🦁","🐼","🦁","🦄","🐯","🦂","🐉","🦁",
+  "⚡","🔥","💎","🌙","⭐","🏆","💀","🎯","🚀","💥",
+  "🎸","🎮","🏏","⚽","🏀","🎲","🃏","🎭","🎪","🎨",
+];
+// Deduplicate
+const AVATAR_EMOJI_LIST = [...new Set([
+  "🦁","🐯","🦅","🐻","🦊","🐺","🐲","🦈","🦋","🐸",
+  "🦉","🐼","🦄","🦂","🐉","🦁","⚡","🔥","💎","🌙",
+  "⭐","🏆","💀","🎯","🚀","💥","🎸","🎮","🏏","⚽",
+  "🏀","🎲","🃏","🎭","🎪","🎨","🤖","👽","🧠","🦸",
+])];
+
+const AVATAR_COLORS = [
+  { color: "#FF6B2B", light: "#FF6B2B18", name: "Orange" },
+  { color: "#00C2FF", light: "#00C2FF18", name: "Blue" },
+  { color: "#A855F7", light: "#A855F718", name: "Purple" },
+  { color: "#22C55E", light: "#22C55E18", name: "Green" },
+  { color: "#EF4444", light: "#EF444418", name: "Red" },
+  { color: "#FFD700", light: "#FFD70018", name: "Gold" },
+  { color: "#EC4899", light: "#EC489918", name: "Pink" },
+  { color: "#14B8A6", light: "#14B8A618", name: "Teal" },
+  { color: "#F97316", light: "#F9731618", name: "Amber" },
+  { color: "#6366F1", light: "#6366F118", name: "Indigo" },
+];
+
+// Default avatars if nothing saved
+const DEFAULT_AVATARS = {
+  Nakel:  { emoji: "🦁", colorIdx: 0 },
+  Mitthu: { emoji: "🐯", colorIdx: 1 },
+  Megs:   { emoji: "🦅", colorIdx: 2 },
+};
+// Base PLAYER_META — overridden dynamically by customAvatars from Firebase
+const BASE_PLAYER_META = {
   Nakel:  { emoji: "🦁", color: "#FF6B2B", light: "#FF6B2B18" },
   Mitthu: { emoji: "🐯", color: "#00C2FF", light: "#00C2FF18" },
   Megs:   { emoji: "🦅", color: "#A855F7", light: "#A855F718" },
@@ -189,6 +225,8 @@ export default function App() {
   const [spyLog, setSpyLog] = useState([]); // local session log of peek events
   const [expandedMatch, setExpandedMatch] = useState(null); // tracks which match is expanded for betting
   const [matchConfirm, setMatchConfirm] = useState(null); // matchId pending confirmation before opening
+  const [customAvatars, setCustomAvatars] = useState({}); // avatar overrides from Firebase
+  const [avatarPicker, setAvatarPicker] = useState(null); // player name whose avatar is being edited
   const [toast, setToast] = useState(null);
 
   // Firebase state
@@ -211,6 +249,7 @@ export default function App() {
   useEffect(() => {
     const unsubs = [
       onValue(ref(db, "bets"), snap => setBets(snap.val() || {})),
+      onValue(ref(db, "avatars"), snap => setCustomAvatars(snap.val() || {})),
       onValue(ref(db, "tossGuesses"), snap => setTossGuesses(snap.val() || {})),
       onValue(ref(db, "manualResults"), snap => setManualResults(snap.val() || {})),
       onValue(ref(db, "iplTable"), snap => { if (snap.val()) setIplTable(snap.val()); }),
@@ -229,6 +268,17 @@ export default function App() {
     setMatches(schedule);
     setLoading(false);
   }, []);
+
+  // Computed PLAYER_META merging base + custom avatars from Firebase
+  const PLAYER_META = Object.fromEntries(PLAYERS.map(p => {
+    const custom = customAvatars[p];
+    const base = BASE_PLAYER_META[p];
+    if (custom) {
+      const colorTheme = AVATAR_COLORS[custom.colorIdx] || AVATAR_COLORS[0];
+      return [p, { emoji: custom.emoji || base.emoji, color: colorTheme.color, light: colorTheme.light }];
+    }
+    return [p, base];
+  }));
 
   // Collapse expanded match and clear revealed picks when player or tab changes
   useEffect(() => {
@@ -411,6 +461,26 @@ export default function App() {
 
   const { pts, breakdown } = calcPoints();
   const ranked = [...PLAYERS].sort((a, b) => pts[b] - pts[a]);
+
+  // Compute ranks respecting ties (e.g. two players on same pts = same rank)
+  function getRank(player) {
+    const playerPts = pts[player];
+    // rank = number of players with strictly more points + 1
+    return PLAYERS.filter(p => pts[p] > playerPts).length + 1;
+  }
+
+  function getRankLabel(rank) {
+    if (rank === 1) return "👑";
+    if (rank === 2) return "🥈";
+    if (rank === 3) return "🥉";
+    return `#${rank}`;
+  }
+
+  function getRankCrown(rank) {
+    if (rank === 1) return "🥇";
+    if (rank === 2) return "🥈";
+    return "🥉";
+  }
 
   const upcomingMatches = matches.filter(m => getEffectiveStatus(m) === "upcoming");
   const liveMatches = matches.filter(m => getEffectiveStatus(m) === "live");
@@ -652,17 +722,20 @@ export default function App() {
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             {PLAYERS.map(p => (
-              <div key={p} style={{ textAlign: "center" }}>
+              <div key={p} style={{ textAlign: "center", cursor: "pointer" }}
+                onClick={() => setAvatarPicker(p)}>
                 <div style={{
                   width: 34, height: 34, borderRadius: "50%",
                   background: PLAYER_META[p].light,
                   border: `2px solid ${PLAYER_META[p].color}`,
                   display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15,
+                  position: "relative",
                 }}>
                   {PLAYER_META[p].emoji}
+                  <div style={{ position: "absolute", bottom: -2, right: -2, fontSize: 8, background: "#060D1A", borderRadius: "50%", width: 12, height: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>✏️</div>
                 </div>
                 <div style={{ fontSize: 8, color: PLAYER_META[p].color, fontWeight: 700, marginTop: 2 }}>
-                  {p.slice(0,5).toUpperCase()}
+                  {p.toUpperCase()}
                 </div>
               </div>
             ))}
@@ -717,26 +790,27 @@ export default function App() {
               </div>
             </div>
 
-            {/* Podium */}
+            {/* Podium — heights based on actual rank, ties share same height */}
             <div style={{ display: "flex", justifyContent: "center", alignItems: "flex-end", gap: 10, marginBottom: 24 }}>
               {[1, 0, 2].map(idx => {
                 const player = ranked[idx];
-                const pos = idx + 1;
-                const podiumH = [140, 170, 110][idx === 0 ? 1 : idx === 1 ? 0 : 2];
-                const crown = ["🥇", "🥈", "🥉"][idx];
+                const rank = getRank(player);
+                const podiumHeights = { 1: 170, 2: 140, 3: 110 };
+                const podiumH = podiumHeights[rank] || 110;
+                const isCenter = idx === 1;
                 const meta = PLAYER_META[player];
                 return (
                   <div key={player} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-                    <div style={{ fontSize: idx === 1 ? 32 : 22 }}>{meta.emoji}</div>
-                    <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: idx === 1 ? 15 : 12, color: meta.color }}>{player}</div>
-                    <div style={{ fontSize: idx === 1 ? 30 : 22, fontWeight: 900, color: "#FFD700", lineHeight: 1 }}>{pts[player]}</div>
+                    <div style={{ fontSize: isCenter ? 32 : 22 }}>{meta.emoji}</div>
+                    <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: isCenter ? 15 : 12, color: meta.color }}>{player}</div>
+                    <div style={{ fontSize: isCenter ? 30 : 22, fontWeight: 900, color: "#FFD700", lineHeight: 1 }}>{pts[player]}</div>
                     <div style={{ fontSize: 9, color: "#4A6080" }}>pts</div>
                     <div style={{
                       width: "100%", height: podiumH, borderRadius: "8px 8px 0 0",
                       background: `linear-gradient(180deg, ${meta.light} 0%, ${meta.color}11 100%)`,
                       border: `1px solid ${meta.color}44`,
                       display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 10, fontSize: 22,
-                    }}>{crown}</div>
+                    }}>{getRankCrown(rank)}</div>
                   </div>
                 );
               })}
@@ -751,7 +825,7 @@ export default function App() {
                 <div key={player} style={{ ...S.card(meta.color + "44"), position: "relative", overflow: "hidden" }}>
                   <div style={{ position: "absolute", top: 0, left: 0, width: `${pct}%`, height: 3, background: `linear-gradient(90deg, ${meta.color}, transparent)` }} />
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <div style={{ fontSize: 26, width: 36 }}>{["👑","🥈","🥉"][i]}</div>
+                    <div style={{ fontSize: 26, width: 36 }}>{getRankLabel(getRank(player))}</div>
                     <div style={{ width: 44, height: 44, borderRadius: "50%", background: meta.light, border: `2px solid ${meta.color}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>
                       {meta.emoji}
                     </div>
@@ -1507,6 +1581,86 @@ export default function App() {
           </div>
         )}
       </div>
+      {/* ── AVATAR PICKER MODAL ── */}
+      {avatarPicker && (() => {
+        const p = avatarPicker;
+        const meta = PLAYER_META[p];
+        const current = customAvatars[p] || DEFAULT_AVATARS[p] || { emoji: meta.emoji, colorIdx: 0 };
+        const [pickedEmoji, setPickedEmoji] = [current.emoji, (e) => {
+          const updated = { ...current, emoji: e };
+          set(ref(db, `avatars/${p}`), updated);
+          setCustomAvatars(prev => ({ ...prev, [p]: updated }));
+        }];
+        const [pickedColorIdx, setPickedColorIdx] = [current.colorIdx ?? 0, (idx) => {
+          const updated = { ...current, colorIdx: idx };
+          set(ref(db, `avatars/${p}`), updated);
+          setCustomAvatars(prev => ({ ...prev, [p]: updated }));
+        }];
+        const previewColor = AVATAR_COLORS[pickedColorIdx] || AVATAR_COLORS[0];
+        return (
+          <div style={{ position: "fixed", inset: 0, background: "#000000DD", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+            onClick={() => setAvatarPicker(null)}>
+            <div style={{ background: "#0D1828", border: "1px solid #1A3050", borderRadius: "20px 20px 0 0", padding: 20, width: "100%", maxWidth: 480, maxHeight: "85vh", overflowY: "auto" }}
+              onClick={e => e.stopPropagation()}>
+
+              {/* Header */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 16, fontWeight: 800, color: "#E2E8F8" }}>
+                  ✏️ Customise Avatar
+                </div>
+                <button onClick={() => setAvatarPicker(null)}
+                  style={{ background: "#1A3050", border: "none", borderRadius: 20, padding: "4px 12px", color: "#7A90B0", cursor: "pointer", fontSize: 12 }}>
+                  Done
+                </button>
+              </div>
+
+              {/* Preview */}
+              <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20, background: "#0A1420", borderRadius: 14, padding: "14px 16px" }}>
+                <div style={{ width: 56, height: 56, borderRadius: "50%", background: previewColor.light, border: `3px solid ${previewColor.color}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>
+                  {pickedEmoji}
+                </div>
+                <div>
+                  <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 18, color: previewColor.color }}>{p}</div>
+                  <div style={{ fontSize: 11, color: "#4A6080", marginTop: 2 }}>Tap an emoji or colour to change</div>
+                </div>
+              </div>
+
+              {/* Emoji picker */}
+              <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 11, color: "#4A6080", fontWeight: 700, letterSpacing: 0.5, marginBottom: 10 }}>CHOOSE EMOJI</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(8, 1fr)", gap: 8, marginBottom: 20 }}>
+                {AVATAR_EMOJI_LIST.map(emoji => (
+                  <button key={emoji} onClick={() => setPickedEmoji(emoji)}
+                    style={{ aspectRatio: "1", borderRadius: 10, border: `2px solid ${pickedEmoji === emoji ? previewColor.color : "#1A3050"}`, background: pickedEmoji === emoji ? previewColor.light : "#0A1420", fontSize: 20, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+
+              {/* Colour picker */}
+              <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 11, color: "#4A6080", fontWeight: 700, letterSpacing: 0.5, marginBottom: 10 }}>CHOOSE COLOUR THEME</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, marginBottom: 8 }}>
+                {AVATAR_COLORS.map((theme, idx) => (
+                  <button key={idx} onClick={() => setPickedColorIdx(idx)}
+                    style={{ padding: "10px 4px", borderRadius: 10, border: `2px solid ${pickedColorIdx === idx ? theme.color : "#1A3050"}`, background: pickedColorIdx === idx ? theme.light : "#0A1420", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                    <div style={{ width: 20, height: 20, borderRadius: "50%", background: theme.color }} />
+                    <div style={{ fontSize: 8, color: pickedColorIdx === idx ? theme.color : "#4A6080", fontWeight: 700 }}>{theme.name}</div>
+                  </button>
+                ))}
+              </div>
+
+              {/* Reset */}
+              <button onClick={() => {
+                set(ref(db, `avatars/${p}`), null);
+                setCustomAvatars(prev => { const n = {...prev}; delete n[p]; return n; });
+              }}
+                style={{ width: "100%", padding: "10px", borderRadius: 10, border: "1px solid #1A3050", background: "transparent", color: "#4A6080", fontSize: 11, cursor: "pointer", marginTop: 4 }}>
+                ↩ Reset to default
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ── MATCH OPEN CONFIRMATION ── */}
       {matchConfirm && (() => {
         const m = matches.find(x => x.id === matchConfirm);
