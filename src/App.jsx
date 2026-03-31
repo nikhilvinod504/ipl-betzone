@@ -72,6 +72,190 @@ const BASE_PLAYER_META = {
   Megs:   { emoji: "🦅", color: "#A855F7", light: "#A855F718" },
 };
 
+
+// ─── IPL 2026 Squads ───────────────────────────────────────────────
+const IPL_SQUADS = {
+  RCB: {
+    captain: "Rajat Patidar", coach: "Andy Flower",
+    players: [
+      { name:"Virat Kohli",      role:"Batter",      country:"India",     cap:"₹21Cr", isOverseas:false, isCap:false },
+      { name:"Rajat Patidar",    role:"Batter",      country:"India",     cap:"₹11Cr", isOverseas:false, isCap:true  },
+      { name:"Phil Salt",        role:"WK-Batter",   country:"England",   cap:"₹11.5Cr",isOverseas:true, isCap:false },
+      { name:"Liam Livingstone", role:"All-Rounder", country:"England",   cap:"₹8.75Cr",isOverseas:true, isCap:false },
+      { name:"Krunal Pandya",    role:"All-Rounder", country:"India",     cap:"₹5.75Cr",isOverseas:false,isCap:false },
+      { name:"Tim David",        role:"All-Rounder", country:"Singapore", cap:"₹3.4Cr", isOverseas:true, isCap:false },
+      { name:"Suyash Sharma",    role:"Bowler",      country:"India",     cap:"₹8.25Cr",isOverseas:false,isCap:false },
+      { name:"Josh Hazlewood",   role:"Bowler",      country:"Australia", cap:"₹12.5Cr",isOverseas:true, isCap:false },
+      { name:"Yash Dayal",       role:"Bowler",      country:"India",     cap:"₹5Cr",   isOverseas:false,isCap:false },
+      { name:"Swapnil Singh",    role:"All-Rounder", country:"India",     cap:"₹3.8Cr", isOverseas:false,isCap:false },
+      { name:"Nuwan Thushara",   role:"Bowler",      country:"Sri Lanka", cap:"₹4.8Cr", isOverseas:true, isCap:false },
+      { name:"Jacob Bethell",    role:"All-Rounder", country:"England",   cap:"₹2.8Cr", isOverseas:true, isCap:false },
+      { name:"Jitesh Sharma",    role:"WK-Batter",   country:"India",     cap:"₹11Cr",  isOverseas:false,isCap:false },
+      { name:"Rasikh Salam",     role:"Bowler",      country:"India",     cap:"₹4.6Cr", isOverseas:false,isCap:false },
+      { name:"Romario Shepherd", role:"All-Rounder", country:"W. Indies", cap:"₹3.5Cr", isOverseas:true, isCap:false },
+    ]
+  },
+  CSK: {
+    captain: "Ruturaj Gaikwad", coach: "Stephen Fleming",
+    players: [
+      { name:"Ruturaj Gaikwad",  role:"Batter",      country:"India",     cap:"₹18Cr",  isOverseas:false, isCap:true  },
+      { name:"MS Dhoni",         role:"WK-Batter",   country:"India",     cap:"₹4Cr",   isOverseas:false, isCap:false },
+      { name:"Sanju Samson",     role:"WK-Batter",   country:"India",     cap:"₹14.5Cr",isOverseas:false, isCap:false },
+      { name:"Shivam Dube",      role:"All-Rounder", country:"India",     cap:"₹4Cr",   isOverseas:false, isCap:false },
+      { name:"Khaleel Ahmed",    role:"Bowler",      country:"India",     cap:"₹4Cr",   isOverseas:false, isCap:false },
+      { name:"Noor Ahmad",       role:"Bowler",      country:"Afghanistan",cap:"₹10Cr", isOverseas:true,  isCap:false },
+      { name:"Ayush Mhatre",     role:"Batter",      country:"India",     cap:"₹14.2Cr",isOverseas:false, isCap:false },
+      { name:"Dewald Brevis",    role:"Batter",      country:"S. Africa", cap:"₹3Cr",   isOverseas:true,  isCap:false },
+      { name:"Matt Henry",       role:"Bowler",      country:"N. Zealand",cap:"₹4.8Cr", isOverseas:true,  isCap:false },
+      { name:"Jamie Overton",    role:"All-Rounder", country:"England",   cap:"₹7.4Cr", isOverseas:true,  isCap:false },
+      { name:"Prashant Veer",    role:"All-Rounder", country:"India",     cap:"₹14.2Cr",isOverseas:false, isCap:false },
+      { name:"Kartik Sharma",    role:"Batter",      country:"India",     cap:"₹14.2Cr",isOverseas:false, isCap:false },
+      { name:"Rahul Chahar",     role:"Bowler",      country:"India",     cap:"₹5Cr",   isOverseas:false, isCap:false },
+      { name:"Mukesh Choudhary", role:"Bowler",      country:"India",     cap:"₹4.5Cr", isOverseas:false, isCap:false },
+      { name:"Shreyas Gopal",    role:"Bowler",      country:"India",     cap:"₹3Cr",   isOverseas:false, isCap:false },
+    ]
+  },
+  MI: {
+    captain: "Hardik Pandya", coach: "Mark Boucher",
+    players: [
+      { name:"Rohit Sharma",     role:"Batter",      country:"India",     cap:"₹16.3Cr",isOverseas:false, isCap:false },
+      { name:"Hardik Pandya",    role:"All-Rounder", country:"India",     cap:"₹16.35Cr",isOverseas:false,isCap:true  },
+      { name:"Jasprit Bumrah",   role:"Bowler",      country:"India",     cap:"₹18Cr",  isOverseas:false, isCap:false },
+      { name:"Suryakumar Yadav", role:"Batter",      country:"India",     cap:"₹16.35Cr",isOverseas:false,isCap:false },
+      { name:"Tilak Varma",      role:"Batter",      country:"India",     cap:"₹17Cr",  isOverseas:false, isCap:false },
+      { name:"Quinton de Kock",  role:"WK-Batter",   country:"S. Africa", cap:"₹1Cr",   isOverseas:true,  isCap:false },
+      { name:"Trent Boult",      role:"Bowler",      country:"N. Zealand",cap:"₹4Cr",   isOverseas:true,  isCap:false },
+      { name:"Ryan Rickelton",   role:"WK-Batter",   country:"S. Africa", cap:"₹3Cr",   isOverseas:true,  isCap:false },
+      { name:"Naman Dhir",       role:"All-Rounder", country:"India",     cap:"₹5.25Cr",isOverseas:false, isCap:false },
+      { name:"Will Jacks",       role:"All-Rounder", country:"England",   cap:"₹4Cr",   isOverseas:true,  isCap:false },
+      { name:"Reece Topley",     role:"Bowler",      country:"England",   cap:"₹75L",   isOverseas:true,  isCap:false },
+      { name:"Deepak Chahar",    role:"Bowler",      country:"India",     cap:"₹9.25Cr",isOverseas:false, isCap:false },
+      { name:"Robin Minz",       role:"WK-Batter",   country:"India",     cap:"₹75L",   isOverseas:false, isCap:false },
+      { name:"Karn Sharma",      role:"Bowler",      country:"India",     cap:"₹75L",   isOverseas:false, isCap:false },
+    ]
+  },
+  KKR: {
+    captain: "Ajinkya Rahane", coach: "Chandrakant Pandit",
+    players: [
+      { name:"Ajinkya Rahane",    role:"Batter",      country:"India",     cap:"₹1.5Cr", isOverseas:false, isCap:true  },
+      { name:"Venkatesh Iyer",    role:"All-Rounder", country:"India",     cap:"₹23.75Cr",isOverseas:false,isCap:false },
+      { name:"Cameron Green",     role:"All-Rounder", country:"Australia", cap:"₹18Cr",  isOverseas:true,  isCap:false },
+      { name:"Matheesha Pathirana",role:"Bowler",     country:"Sri Lanka", cap:"₹18Cr",  isOverseas:true,  isCap:false },
+      { name:"Quinton de Kock",   role:"WK-Batter",   country:"S. Africa", cap:"₹3.6Cr", isOverseas:true,  isCap:false },
+      { name:"Varun Chakravarthy",role:"Bowler",      country:"India",     cap:"₹14Cr",  isOverseas:false, isCap:false },
+      { name:"Rinku Singh",       role:"Batter",      country:"India",     cap:"₹13Cr",  isOverseas:false, isCap:false },
+      { name:"Harshit Rana",      role:"Bowler",      country:"India",     cap:"₹18Cr",  isOverseas:false, isCap:false },
+      { name:"Angkrish Raghuvanshi",role:"Batter",    country:"India",     cap:"₹3Cr",   isOverseas:false, isCap:false },
+      { name:"Andre Russell",     role:"All-Rounder", country:"W. Indies", cap:"₹12Cr",  isOverseas:true,  isCap:false },
+      { name:"Blessing Muzarabani",role:"Bowler",     country:"Zimbabwe",  cap:"₹75L",   isOverseas:true,  isCap:false },
+      { name:"Luvnith Sisodia",   role:"WK-Batter",   country:"India",     cap:"₹30L",   isOverseas:false, isCap:false },
+      { name:"Mayank Markande",   role:"Bowler",      country:"India",     cap:"₹30L",   isOverseas:false, isCap:false },
+    ]
+  },
+  SRH: {
+    captain: "Pat Cummins", coach: "Daniel Vettori",
+    players: [
+      { name:"Pat Cummins",       role:"Bowler",      country:"Australia", cap:"₹18Cr",  isOverseas:true,  isCap:true  },
+      { name:"Heinrich Klaasen",  role:"WK-Batter",   country:"S. Africa", cap:"₹23Cr",  isOverseas:true,  isCap:false },
+      { name:"Travis Head",       role:"Batter",      country:"Australia", cap:"₹14.1Cr",isOverseas:true,  isCap:false },
+      { name:"Abhishek Sharma",   role:"Batter",      country:"India",     cap:"₹14Cr",  isOverseas:false, isCap:false },
+      { name:"Mohammed Shami",    role:"Bowler",      country:"India",     cap:"₹10Cr",  isOverseas:false, isCap:false },
+      { name:"Adam Zampa",        role:"Bowler",      country:"Australia", cap:"₹2.4Cr", isOverseas:true,  isCap:false },
+      { name:"Harshal Patel",     role:"Bowler",      country:"India",     cap:"₹7.25Cr",isOverseas:false, isCap:false },
+      { name:"Nitish Kumar Reddy",role:"All-Rounder", country:"India",     cap:"₹13Cr",  isOverseas:false, isCap:false },
+      { name:"Ishan Kishan",      role:"WK-Batter",   country:"India",     cap:"₹11.25Cr",isOverseas:false,isCap:false },
+      { name:"Zeeshan Ansari",    role:"Bowler",      country:"India",     cap:"₹30L",   isOverseas:false, isCap:false },
+      { name:"Simarjeet Singh",   role:"Bowler",      country:"India",     cap:"₹75L",   isOverseas:false, isCap:false },
+      { name:"Jaydev Unadkat",    role:"Bowler",      country:"India",     cap:"₹1Cr",   isOverseas:false, isCap:false },
+    ]
+  },
+  RR: {
+    captain: "Riyan Parag", coach: "Rahul Dravid",
+    players: [
+      { name:"Riyan Parag",       role:"All-Rounder", country:"India",     cap:"₹14Cr",  isOverseas:false, isCap:true  },
+      { name:"Yashasvi Jaiswal",  role:"Batter",      country:"India",     cap:"₹18Cr",  isOverseas:false, isCap:false },
+      { name:"Jos Buttler",       role:"WK-Batter",   country:"England",   cap:"₹15Cr",  isOverseas:true,  isCap:false },
+      { name:"Shimron Hetmyer",   role:"Batter",      country:"W. Indies", cap:"₹11.5Cr",isOverseas:true,  isCap:false },
+      { name:"Jofra Archer",      role:"Bowler",      country:"England",   cap:"₹17.5Cr",isOverseas:true,  isCap:false },
+      { name:"Yuzvendra Chahal",  role:"Bowler",      country:"India",     cap:"₹18Cr",  isOverseas:false, isCap:false },
+      { name:"Dhruv Jurel",       role:"WK-Batter",   country:"India",     cap:"₹14Cr",  isOverseas:false, isCap:false },
+      { name:"Maheesh Theekshana",role:"Bowler",      country:"Sri Lanka", cap:"₹4Cr",   isOverseas:true,  isCap:false },
+      { name:"Nitish Rana",       role:"All-Rounder", country:"India",     cap:"₹4Cr",   isOverseas:false, isCap:false },
+      { name:"Akash Madhwal",     role:"Bowler",      country:"India",     cap:"₹4Cr",   isOverseas:false, isCap:false },
+      { name:"Wanindu Hasaranga", role:"All-Rounder", country:"Sri Lanka", cap:"₹6.25Cr",isOverseas:true,  isCap:false },
+      { name:"Shubham Dubey",     role:"All-Rounder", country:"India",     cap:"₹6Cr",   isOverseas:false, isCap:false },
+    ]
+  },
+  DC: {
+    captain: "KL Rahul", coach: "Hemang Badani",
+    players: [
+      { name:"KL Rahul",          role:"WK-Batter",   country:"India",     cap:"₹14Cr",  isOverseas:false, isCap:true  },
+      { name:"David Miller",      role:"Batter",      country:"S. Africa", cap:"₹3.5Cr", isOverseas:true,  isCap:false },
+      { name:"Faf du Plessis",    role:"Batter",      country:"S. Africa", cap:"Retained",isOverseas:true, isCap:false },
+      { name:"Kuldeep Yadav",     role:"Bowler",      country:"India",     cap:"₹17Cr",  isOverseas:false, isCap:false },
+      { name:"Axar Patel",        role:"All-Rounder", country:"India",     cap:"₹16.5Cr",isOverseas:false, isCap:false },
+      { name:"Tristan Stubbs",    role:"Batter",      country:"S. Africa", cap:"₹4.7Cr", isOverseas:true,  isCap:false },
+      { name:"Karun Nair",        role:"Batter",      country:"India",     cap:"₹6Cr",   isOverseas:false, isCap:false },
+      { name:"Mitchell Starc",    role:"Bowler",      country:"Australia", cap:"₹11.5Cr",isOverseas:true,  isCap:false },
+      { name:"Prithvi Shaw",      role:"Batter",      country:"India",     cap:"₹7.5Cr", isOverseas:false, isCap:false },
+      { name:"Mohit Sharma",      role:"Bowler",      country:"India",     cap:"₹4Cr",   isOverseas:false, isCap:false },
+      { name:"Abishek Porel",     role:"WK-Batter",   country:"India",     cap:"₹3Cr",   isOverseas:false, isCap:false },
+      { name:"Sameer Rizvi",      role:"Batter",      country:"India",     cap:"₹3Cr",   isOverseas:false, isCap:false },
+    ]
+  },
+  GT: {
+    captain: "Shubman Gill", coach: "Gary Kirsten",
+    players: [
+      { name:"Shubman Gill",      role:"Batter",      country:"India",     cap:"₹17Cr",  isOverseas:false, isCap:true  },
+      { name:"Jos Buttler",       role:"WK-Batter",   country:"England",   cap:"₹15Cr",  isOverseas:true,  isCap:false },
+      { name:"Rashid Khan",       role:"All-Rounder", country:"Afghanistan",cap:"₹18Cr", isOverseas:true,  isCap:false },
+      { name:"Mohammed Siraj",    role:"Bowler",      country:"India",     cap:"₹11Cr",  isOverseas:false, isCap:false },
+      { name:"Washington Sundar", role:"All-Rounder", country:"India",     cap:"₹3.2Cr", isOverseas:false, isCap:false },
+      { name:"Shahrukh Khan",     role:"Batter",      country:"India",     cap:"₹7.4Cr", isOverseas:false, isCap:false },
+      { name:"Kagiso Rabada",     role:"Bowler",      country:"S. Africa", cap:"₹17.5Cr",isOverseas:true,  isCap:false },
+      { name:"Sai Sudharsan",     role:"Batter",      country:"India",     cap:"₹8.5Cr", isOverseas:false, isCap:false },
+      { name:"Rahul Tewatia",     role:"All-Rounder", country:"India",     cap:"₹5Cr",   isOverseas:false, isCap:false },
+      { name:"Spencer Johnson",   role:"Bowler",      country:"Australia", cap:"₹2.4Cr", isOverseas:true,  isCap:false },
+      { name:"Nishant Sindhu",    role:"All-Rounder", country:"India",     cap:"₹3.2Cr", isOverseas:false, isCap:false },
+      { name:"Anuj Rawat",        role:"WK-Batter",   country:"India",     cap:"₹75L",   isOverseas:false, isCap:false },
+    ]
+  },
+  PBKS: {
+    captain: "Shreyas Iyer", coach: "Ricky Ponting",
+    players: [
+      { name:"Shreyas Iyer",      role:"Batter",      country:"India",     cap:"₹26.75Cr",isOverseas:false,isCap:true  },
+      { name:"Jonny Bairstow",    role:"WK-Batter",   country:"England",   cap:"₹2Cr",   isOverseas:true,  isCap:false },
+      { name:"Glenn Maxwell",     role:"All-Rounder", country:"Australia", cap:"₹11Cr",  isOverseas:true,  isCap:false },
+      { name:"Arshdeep Singh",    role:"Bowler",      country:"India",     cap:"₹18Cr",  isOverseas:false, isCap:false },
+      { name:"Yuzvendra Chahal",  role:"Bowler",      country:"India",     cap:"₹18Cr",  isOverseas:false, isCap:false },
+      { name:"Prabhsimran Singh", role:"WK-Batter",   country:"India",     cap:"₹4.4Cr", isOverseas:false, isCap:false },
+      { name:"Nehal Wadhera",     role:"Batter",      country:"India",     cap:"₹4.2Cr", isOverseas:false, isCap:false },
+      { name:"Marco Jansen",      role:"All-Rounder", country:"S. Africa", cap:"₹13Cr",  isOverseas:true,  isCap:false },
+      { name:"Azmatullah Omarzai",role:"All-Rounder", country:"Afghanistan",cap:"₹2.8Cr",isOverseas:true,  isCap:false },
+      { name:"Harnoor Pannu",     role:"Batter",      country:"India",     cap:"₹30L",   isOverseas:false, isCap:false },
+      { name:"Musheer Khan",      role:"Batter",      country:"India",     cap:"₹2Cr",   isOverseas:false, isCap:false },
+      { name:"Praveen Dubey",     role:"Bowler",      country:"India",     cap:"₹30L",   isOverseas:false, isCap:false },
+    ]
+  },
+  LSG: {
+    captain: "Rishabh Pant", coach: "Justin Langer",
+    players: [
+      { name:"Rishabh Pant",      role:"WK-Batter",   country:"India",     cap:"₹27Cr",  isOverseas:false, isCap:true  },
+      { name:"Nicholas Pooran",   role:"WK-Batter",   country:"W. Indies", cap:"₹21Cr",  isOverseas:true,  isCap:false },
+      { name:"Ravi Bishnoi",      role:"Bowler",      country:"India",     cap:"₹11Cr",  isOverseas:false, isCap:false },
+      { name:"Mayank Yadav",      role:"Bowler",      country:"India",     cap:"₹11Cr",  isOverseas:false, isCap:false },
+      { name:"Mitchell Marsh",    role:"All-Rounder", country:"Australia", cap:"₹3.4Cr", isOverseas:true,  isCap:false },
+      { name:"David Warner",      role:"Batter",      country:"Australia", cap:"₹6.25Cr",isOverseas:true,  isCap:false },
+      { name:"Krunal Pandya",     role:"All-Rounder", country:"India",     cap:"₹5.75Cr",isOverseas:false, isCap:false },
+      { name:"Yash Thakur",       role:"Bowler",      country:"India",     cap:"₹2Cr",   isOverseas:false, isCap:false },
+      { name:"Digvesh Singh",     role:"Bowler",      country:"India",     cap:"₹30L",   isOverseas:false, isCap:false },
+      { name:"Aryan Juyal",       role:"WK-Batter",   country:"India",     cap:"₹30L",   isOverseas:false, isCap:false },
+      { name:"Himmat Singh",      role:"Batter",      country:"India",     cap:"₹75L",   isOverseas:false, isCap:false },
+      { name:"Matthew Breetzke",  role:"Batter",      country:"S. Africa", cap:"₹30L",   isOverseas:true,  isCap:false },
+    ]
+  },
+};
+
 const IPL_TEAMS = {
   MI:   { name: "Mumbai Indians",               color: "#005DA0", accent: "#D4AF37", logo: "https://scores.iplt20.com/ipl/teamlogos/MI.png" },
   CSK:  { name: "Chennai Super Kings",           color: "#F9CD05", accent: "#0081E9", logo: "https://scores.iplt20.com/ipl/teamlogos/CSK.png" },
@@ -275,7 +459,8 @@ export default function App() {
   const [selectedPlayer, setSelectedPlayer] = useState(PLAYERS[0]);
   const [revealedPicks, setRevealedPicks] = useState({}); // tracks which match picks are revealed
   const [spyLog, setSpyLog] = useState([]); // local session log of peek events
-  const [expandedMatch, setExpandedMatch] = useState(null); // tracks which match is expanded for betting
+  const [expandedMatch, setExpandedMatch] = useState(null);
+  const [selectedTeam, setSelectedTeam] = useState("RCB"); // tracks which match is expanded for betting
   const [matchConfirm, setMatchConfirm] = useState(null); // matchId pending confirmation before opening
   const [customAvatars, setCustomAvatars] = useState({}); // avatar overrides from Firebase
   const [avatarPicker, setAvatarPicker] = useState(null); // player name whose avatar is being edited
@@ -591,6 +776,7 @@ export default function App() {
     { id: "history",     label: "📜 History" },
     { id: "stats",       label: "📊 Stats" },
     { id: "spylog",      label: "🕵️ Log" },
+    { id: "squad",       label: "🏏 Squad" },
     ...(adminMode ? [{ id: "admin", label: "⚙️ Admin" }] : []),
   ];
 
@@ -1512,6 +1698,100 @@ export default function App() {
             )}
           </div>
         )}
+
+        {/* ── SQUAD ── */}
+        {!loading && tab === "squad" && (() => {
+          const squad = IPL_SQUADS[selectedTeam];
+          const teamMeta = IPL_TEAMS[selectedTeam];
+          const roleOrder = ["WK-Batter","Batter","All-Rounder","Bowler"];
+          const roleColors = {
+            "WK-Batter":  { bg:"#F59E0B18", color:"#F59E0B", icon:"🧤" },
+            "Batter":     { bg:"#22C55E18", color:"#22C55E", icon:"🏏" },
+            "All-Rounder":{ bg:"#00C2FF18", color:"#00C2FF", icon:"⭐" },
+            "Bowler":     { bg:"#EF444418", color:"#EF4444", icon:"🎯" },
+          };
+          const grouped = roleOrder.reduce((acc, role) => {
+            const players = squad.players.filter(p => p.role === role);
+            if (players.length) acc[role] = players;
+            return acc;
+          }, {});
+          return (
+            <div>
+              {/* Team selector */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 11, color: "#4A6080", fontWeight: 700, letterSpacing: 0.5, marginBottom: 10 }}>SELECT TEAM</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {Object.keys(IPL_SQUADS).map(t => (
+                    <button key={t} onClick={() => setSelectedTeam(t)}
+                      style={{ padding: "7px 12px", borderRadius: 20, border: `2px solid ${selectedTeam === t ? IPL_TEAMS[t]?.color || "#FF6B2B" : "#1A3050"}`, background: selectedTeam === t ? (IPL_TEAMS[t]?.color || "#FF6B2B") + "22" : "#0A1420", color: selectedTeam === t ? IPL_TEAMS[t]?.color || "#FF6B2B" : "#4A6080", fontWeight: 700, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+                      <TeamBadge short={t} size={20} />
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Team header */}
+              <div style={{ ...S.card(teamMeta?.color + "33"), marginBottom: 16, display: "flex", alignItems: "center", gap: 14 }}>
+                <TeamBadge short={selectedTeam} size={56} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 18, color: teamMeta?.color || "#fff" }}>{teamMeta?.name || selectedTeam}</div>
+                  <div style={{ fontSize: 11, color: "#7A90B0", marginTop: 3 }}>👑 Captain: <span style={{ color: "#FFD700", fontWeight: 700 }}>{squad.captain}</span></div>
+                  <div style={{ fontSize: 11, color: "#7A90B0", marginTop: 2 }}>🎓 Coach: <span style={{ color: "#E2E8F8" }}>{squad.coach}</span></div>
+                  <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 9, padding: "2px 8px", borderRadius: 10, background: "#0A1420", color: "#4A6080", border: "1px solid #1A3050" }}>
+                      🌏 Overseas: {squad.players.filter(p => p.isOverseas).length}
+                    </span>
+                    <span style={{ fontSize: 9, padding: "2px 8px", borderRadius: 10, background: "#0A1420", color: "#4A6080", border: "1px solid #1A3050" }}>
+                      🏏 Total: {squad.players.length}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Role legend */}
+              <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+                {Object.entries(roleColors).map(([role, rc]) => (
+                  <span key={role} style={{ fontSize: 9, padding: "2px 8px", borderRadius: 10, background: rc.bg, color: rc.color, border: `1px solid ${rc.color}44`, fontWeight: 700 }}>
+                    {rc.icon} {role}
+                  </span>
+                ))}
+              </div>
+
+              {/* Players grouped by role */}
+              {Object.entries(grouped).map(([role, players]) => {
+                const rc = roleColors[role];
+                return (
+                  <div key={role} style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 10, color: rc.color, fontWeight: 700, letterSpacing: 0.5, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                      <span>{rc.icon}</span> {role.toUpperCase()} ({players.length})
+                    </div>
+                    {players.map(p => (
+                      <div key={p.name} style={{ background: "#0D1828", border: `1px solid ${p.isCap ? teamMeta?.color + "66" : "#1A3050"}`, borderRadius: 12, padding: "10px 12px", marginBottom: 6, display: "flex", alignItems: "center", gap: 10 }}>
+                        {/* Avatar circle */}
+                        <div style={{ width: 36, height: 36, borderRadius: "50%", background: rc.bg, border: `2px solid ${rc.color}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>
+                          {rc.icon}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                            <span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 13, color: p.isCap ? teamMeta?.color : "#E2E8F8" }}>{p.name}</span>
+                            {p.isCap && <span style={{ fontSize: 9, background: teamMeta?.color + "33", color: teamMeta?.color, padding: "1px 6px", borderRadius: 8, fontWeight: 700, border: `1px solid ${teamMeta?.color}55` }}>C</span>}
+                            {p.isOverseas && <span style={{ fontSize: 9, background: "#A855F718", color: "#A855F7", padding: "1px 6px", borderRadius: 8, fontWeight: 700, border: "1px solid #A855F744" }}>🌏</span>}
+                          </div>
+                          <div style={{ fontSize: 10, color: "#4A6080", marginTop: 2 }}>{p.country}</div>
+                        </div>
+                        <div style={{ textAlign: "right", flexShrink: 0 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: "#FFD700" }}>{p.cap}</div>
+                          <div style={{ fontSize: 9, color: "#4A6080", marginTop: 1 }}>price</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
 
         {/* ── ADMIN ── */}
         {!loading && tab === "admin" && adminMode && (
