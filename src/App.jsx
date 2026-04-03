@@ -141,7 +141,6 @@ const IPL_SQUADS = {
       { name:"Venkatesh Iyer",    role:"All-Rounder", country:"India",     cap:"₹23.75Cr",isOverseas:false,isCap:false },
       { name:"Cameron Green",     role:"All-Rounder", country:"Australia", cap:"₹18Cr",  isOverseas:true,  isCap:false },
       { name:"Matheesha Pathirana",role:"Bowler",     country:"Sri Lanka", cap:"₹18Cr",  isOverseas:true,  isCap:false },
-      { name:"Quinton de Kock",   role:"WK-Batter",   country:"S. Africa", cap:"₹3.6Cr", isOverseas:true,  isCap:false },
       { name:"Varun Chakravarthy",role:"Bowler",      country:"India",     cap:"₹14Cr",  isOverseas:false, isCap:false },
       { name:"Rinku Singh",       role:"Batter",      country:"India",     cap:"₹13Cr",  isOverseas:false, isCap:false },
       { name:"Harshit Rana",      role:"Bowler",      country:"India",     cap:"₹18Cr",  isOverseas:false, isCap:false },
@@ -174,10 +173,8 @@ const IPL_SQUADS = {
     players: [
       { name:"Riyan Parag",       role:"All-Rounder", country:"India",     cap:"₹14Cr",  isOverseas:false, isCap:true  },
       { name:"Yashasvi Jaiswal",  role:"Batter",      country:"India",     cap:"₹18Cr",  isOverseas:false, isCap:false },
-      { name:"Jos Buttler",       role:"WK-Batter",   country:"England",   cap:"₹15Cr",  isOverseas:true,  isCap:false },
       { name:"Shimron Hetmyer",   role:"Batter",      country:"W. Indies", cap:"₹11.5Cr",isOverseas:true,  isCap:false },
       { name:"Jofra Archer",      role:"Bowler",      country:"England",   cap:"₹17.5Cr",isOverseas:true,  isCap:false },
-      { name:"Yuzvendra Chahal",  role:"Bowler",      country:"India",     cap:"₹18Cr",  isOverseas:false, isCap:false },
       { name:"Dhruv Jurel",       role:"WK-Batter",   country:"India",     cap:"₹14Cr",  isOverseas:false, isCap:false },
       { name:"Maheesh Theekshana",role:"Bowler",      country:"Sri Lanka", cap:"₹4Cr",   isOverseas:true,  isCap:false },
       { name:"Nitish Rana",       role:"All-Rounder", country:"India",     cap:"₹4Cr",   isOverseas:false, isCap:false },
@@ -207,7 +204,6 @@ const IPL_SQUADS = {
     captain: "Shubman Gill", coach: "Gary Kirsten",
     players: [
       { name:"Shubman Gill",      role:"Batter",      country:"India",     cap:"₹17Cr",  isOverseas:false, isCap:true  },
-      { name:"Jos Buttler",       role:"WK-Batter",   country:"England",   cap:"₹15Cr",  isOverseas:true,  isCap:false },
       { name:"Rashid Khan",       role:"All-Rounder", country:"Afghanistan",cap:"₹18Cr", isOverseas:true,  isCap:false },
       { name:"Mohammed Siraj",    role:"Bowler",      country:"India",     cap:"₹11Cr",  isOverseas:false, isCap:false },
       { name:"Washington Sundar", role:"All-Rounder", country:"India",     cap:"₹3.2Cr", isOverseas:false, isCap:false },
@@ -227,7 +223,6 @@ const IPL_SQUADS = {
       { name:"Jonny Bairstow",    role:"WK-Batter",   country:"England",   cap:"₹2Cr",   isOverseas:true,  isCap:false },
       { name:"Glenn Maxwell",     role:"All-Rounder", country:"Australia", cap:"₹11Cr",  isOverseas:true,  isCap:false },
       { name:"Arshdeep Singh",    role:"Bowler",      country:"India",     cap:"₹18Cr",  isOverseas:false, isCap:false },
-      { name:"Yuzvendra Chahal",  role:"Bowler",      country:"India",     cap:"₹18Cr",  isOverseas:false, isCap:false },
       { name:"Prabhsimran Singh", role:"WK-Batter",   country:"India",     cap:"₹4.4Cr", isOverseas:false, isCap:false },
       { name:"Nehal Wadhera",     role:"Batter",      country:"India",     cap:"₹4.2Cr", isOverseas:false, isCap:false },
       { name:"Marco Jansen",      role:"All-Rounder", country:"S. Africa", cap:"₹13Cr",  isOverseas:true,  isCap:false },
@@ -246,7 +241,6 @@ const IPL_SQUADS = {
       { name:"Mayank Yadav",      role:"Bowler",      country:"India",     cap:"₹11Cr",  isOverseas:false, isCap:false },
       { name:"Mitchell Marsh",    role:"All-Rounder", country:"Australia", cap:"₹3.4Cr", isOverseas:true,  isCap:false },
       { name:"David Warner",      role:"Batter",      country:"Australia", cap:"₹6.25Cr",isOverseas:true,  isCap:false },
-      { name:"Krunal Pandya",     role:"All-Rounder", country:"India",     cap:"₹5.75Cr",isOverseas:false, isCap:false },
       { name:"Yash Thakur",       role:"Bowler",      country:"India",     cap:"₹2Cr",   isOverseas:false, isCap:false },
       { name:"Digvesh Singh",     role:"Bowler",      country:"India",     cap:"₹30L",   isOverseas:false, isCap:false },
       { name:"Aryan Juyal",       role:"WK-Batter",   country:"India",     cap:"₹30L",   isOverseas:false, isCap:false },
@@ -2123,4 +2117,4 @@ export default function App() {
       })()}
     </div>
   );
-}
+      }
