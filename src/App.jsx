@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { initializeApp } from "firebase/app";
 import { getDatabase, ref, onValue, set, get, update } from "firebase/database";
 
@@ -1562,8 +1563,92 @@ export default function App() {
         {/* ── STATS ── */}
         {!loading && tab === "stats" && (() => {
           const { enriched, h2h, total } = calcStats();
+
+          // Build points progression data from completed matches
+          const progressionData = (() => {
+            const cum = { Nakel: 0, Mitthu: 0, Megs: 0 };
+            const data = [{ label: "Start", Nakel: 0, Mitthu: 0, Megs: 0 }];
+            completedMatches.forEach((match, i) => {
+              const winner = getEffectiveWinner(match);
+              const tossW  = getEffectiveTossWinner(match);
+              PLAYERS.forEach(p => {
+                if (bets[`${match.id}__${p}`] === winner) cum[p] += 2;
+                if (tossGuesses[`${match.id}__${p}`] === tossW) cum[p] += 1;
+              });
+              data.push({
+                label: `M${i + 1}`,
+                matchInfo: `${match.home} vs ${match.away}`,
+                date: fmtMatchDate(match.rawDate),
+                Nakel:  cum.Nakel,
+                Mitthu: cum.Mitthu,
+                Megs:   cum.Megs,
+              });
+            });
+            return data;
+          })();
+
+          const maxPts = Math.max(...progressionData.map(d => Math.max(d.Nakel, d.Mitthu, d.Megs)), 6);
+
+          const GraphTooltip = ({ active, payload, label }) => {
+            if (!active || !payload?.length) return null;
+            const d = payload[0]?.payload;
+            return (
+              <div style={{ background: "#0D1828", border: "1px solid #1A3050", borderRadius: 10, padding: "8px 12px", fontSize: 11 }}>
+                {d?.matchInfo && <div style={{ color: "#4A6080", marginBottom: 5, fontWeight: 700 }}>{d.date} · {d.matchInfo}</div>}
+                {payload.sort((a,b) => b.value - a.value).map(p => (
+                  <div key={p.dataKey} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: p.color }} />
+                    <span style={{ color: "#E2E8F8" }}>{PLAYER_META[p.dataKey]?.emoji} {p.dataKey}</span>
+                    <span style={{ color: p.color, fontWeight: 800, marginLeft: "auto", paddingLeft: 12 }}>{p.value} pts</span>
+                  </div>
+                ))}
+              </div>
+            );
+          };
+
           return (
             <div>
+              {/* Points Progression Graph */}
+              <div style={{ fontFamily:"'Syne',sans-serif", fontSize:13, color:"#FFD700", fontWeight:800, marginBottom:4, letterSpacing:0.5 }}>📈 POINTS PROGRESSION</div>
+              <div style={{ fontSize:11, color:"#4A6080", marginBottom:12 }}>
+                {completedMatches.length === 0 ? "Graph will appear once matches are completed" : `After ${completedMatches.length} match${completedMatches.length > 1 ? "es" : ""}`}
+              </div>
+
+              {completedMatches.length === 0 ? (
+                <div style={{ ...S.card(), textAlign:"center", padding:32, color:"#2A4060", marginBottom:16 }}>
+                  <div style={{ fontSize:32, marginBottom:8 }}>📈</div>
+                  <div style={{ fontSize:12, fontWeight:700 }}>No data yet</div>
+                  <div style={{ fontSize:10, marginTop:4 }}>Complete your first match to see the graph</div>
+                </div>
+              ) : (
+                <div style={{ ...S.card(), padding:"16px 4px 10px", marginBottom:16 }}>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <LineChart data={progressionData} margin={{ top:4, right:16, left:-20, bottom:0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1A3050" vertical={false} />
+                      <XAxis dataKey="label" tick={{ fontSize:9, fill:"#4A6080" }} tickLine={false} axisLine={{ stroke:"#1A3050" }} />
+                      <YAxis domain={[0, maxPts + 2]} tick={{ fontSize:9, fill:"#4A6080" }} tickLine={false} axisLine={false} tickCount={5} />
+                      <Tooltip content={<GraphTooltip />} />
+                      {PLAYERS.map(p => (
+                        <Line key={p} type="monotone" dataKey={p}
+                          stroke={PLAYER_META[p].color} strokeWidth={2.5}
+                          dot={{ r:4, fill:PLAYER_META[p].color, stroke:"#060D1A", strokeWidth:2 }}
+                          activeDot={{ r:6, fill:PLAYER_META[p].color, stroke:"#060D1A", strokeWidth:2 }}
+                        />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                  {/* Legend */}
+                  <div style={{ display:"flex", justifyContent:"center", gap:16, marginTop:8 }}>
+                    {PLAYERS.map(p => (
+                      <div key={p} style={{ display:"flex", alignItems:"center", gap:5 }}>
+                        <div style={{ width:16, height:3, borderRadius:2, background:PLAYER_META[p].color }} />
+                        <span style={{ fontSize:10, color:PLAYER_META[p].color, fontWeight:700 }}>{PLAYER_META[p].emoji} {p}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* IPL Points Table */}
               <div style={{fontFamily:"'Syne',sans-serif",fontSize:13,color:"#FFD700",fontWeight:800,marginBottom:10,letterSpacing:0.5}}>🏏 IPL 2026 POINTS TABLE</div>
               <div style={{...S.card(),padding:0,overflow:"hidden",marginBottom:16}}>
