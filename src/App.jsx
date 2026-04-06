@@ -1561,30 +1561,62 @@ export default function App() {
             {completedMatches.map(match => {
               const winner = getEffectiveWinner(match);
               const tossWinner = getEffectiveTossWinner(match);
+              const status = getEffectiveStatus(match);
+              const isAbandoned = status === "abandoned";
+              const manual = manualResults[fbKey(match.id)];
+              const tossHappened = manual?.abandonedWithToss === true;
               return (
-                <div key={match.id} style={S.card()}>
+                <div key={match.id} style={{ ...S.card(), borderLeft: isAbandoned ? "3px solid #60A5FA" : undefined }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
                     <span style={{ fontSize: 11, color: "#4A6080" }}>{fmtMatchDate(match.rawDate)}</span>
-                    <span style={{ fontSize: 11, color: "#FFD700", fontWeight: 700 }}>🏆 {winner} won{tossWinner ? ` · 🪙 ${tossWinner} toss` : ""}</span>
+                    {isAbandoned ? (
+                      <span style={{ fontSize: 11, color: "#60A5FA", fontWeight: 700 }}>
+                        🌧️ Abandoned{tossHappened && tossWinner ? ` · 🪙 ${tossWinner} toss` : ""}
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: 11, color: "#FFD700", fontWeight: 700 }}>🏆 {winner} won{tossWinner ? ` · 🪙 ${tossWinner} toss` : ""}</span>
+                    )}
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                     <TeamBadge short={match.home} size={32} />
-                    <div style={{ flex: 1, textAlign: "center", fontSize: 11, color: "#4A6080" }}>{match.home} vs {match.away}</div>
+                    <div style={{ flex: 1, textAlign: "center", fontSize: 11, color: isAbandoned ? "#60A5FA" : "#4A6080" }}>
+                      {match.home} vs {match.away}
+                      {isAbandoned && <div style={{ fontSize: 10, marginTop: 2 }}>{tossHappened ? "Toss happened before washout" : "Washed out before toss"}</div>}
+                    </div>
                     <TeamBadge short={match.away} size={32} />
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>
                     {PLAYERS.map(p => {
                       const pb = bets[`${match.id}__${p}`];
                       const pt = tossGuesses[`${match.id}__${p}`];
-                      const winOk = pb === winner;
-                      const tossOk = tossWinner && pt === tossWinner;
-                      const earned = (winOk ? 2 : 0) + (tossOk ? 1 : 0);
+                      let earned = 0;
+                      let winOk = false;
+                      let tossOk = false;
+                      if (isAbandoned) {
+                        // Abandoned: everyone gets +1, toss correct also gets +1 extra
+                        earned = 1; // abandon point
+                        if (tossHappened && tossWinner && pt === tossWinner) {
+                          earned += 1; // toss point on top
+                          tossOk = true;
+                        }
+                      } else {
+                        winOk = pb === winner;
+                        tossOk = tossWinner && pt === tossWinner;
+                        earned = (winOk ? 2 : 0) + (tossOk ? 1 : 0);
+                      }
                       const meta = PLAYER_META[p];
                       return (
-                        <div key={p} style={{ flex: 1, background: "#060D1A", borderRadius: 10, padding: "10px 8px", border: `1px solid ${earned > 0 ? meta.color + "55" : "#1A3050"}` }}>
+                        <div key={p} style={{ flex: 1, background: "#060D1A", borderRadius: 10, padding: "10px 8px", border: `1px solid ${earned > 0 ? (isAbandoned ? "#60A5FA55" : meta.color + "55") : "#1A3050"}` }}>
                           <div style={{ fontSize: 12, fontWeight: 700, color: meta.color, marginBottom: 4 }}>{meta.emoji} {p}</div>
-                          <div style={{ fontSize: 10, color: "#4A6080" }}>Pick: <span style={{ color: winOk ? "#22C55E" : "#EF4444", fontWeight: 700 }}>{pb || "—"}</span></div>
-                          {tossWinner && <div style={{ fontSize: 10, color: "#4A6080" }}>Toss: <span style={{ color: tossOk ? "#22C55E" : "#EF4444", fontWeight: 700 }}>{pt || "—"}</span></div>}
+                          {!isAbandoned && (
+                            <div style={{ fontSize: 10, color: "#4A6080" }}>Pick: <span style={{ color: winOk ? "#22C55E" : "#EF4444", fontWeight: 700 }}>{pb || "—"}</span></div>
+                          )}
+                          {(tossWinner || isAbandoned) && tossHappened !== false && (
+                            <div style={{ fontSize: 10, color: "#4A6080" }}>
+                              Toss: <span style={{ color: tossOk ? "#22C55E" : isAbandoned ? "#4A6080" : "#EF4444", fontWeight: 700 }}>{pt || "—"}</span>
+                            </div>
+                          )}
+                          {isAbandoned && <div style={{ fontSize: 9, color: "#60A5FA", marginTop: 2 }}>🌧️ +1 abandon{tossOk ? " +1 toss" : ""}</div>}
                           <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 18, fontWeight: 800, color: earned > 0 ? "#FFD700" : "#2A4060", marginTop: 4 }}>+{earned}</div>
                         </div>
                       );
@@ -1607,9 +1639,17 @@ export default function App() {
             completedMatches.forEach((match, i) => {
               const winner = getEffectiveWinner(match);
               const tossW  = getEffectiveTossWinner(match);
+              const matchStatus = getEffectiveStatus(match);
+              const isAband = matchStatus === "abandoned";
+              const tossHappened = manualResults[fbKey(match.id)]?.abandonedWithToss === true;
               PLAYERS.forEach(p => {
-                if (bets[`${match.id}__${p}`] === winner) cum[p] += 2;
-                if (tossGuesses[`${match.id}__${p}`] === tossW) cum[p] += 1;
+                if (isAband) {
+                  cum[p] += 1; // everyone gets +1 abandon
+                  if (tossHappened && tossW && tossGuesses[`${match.id}__${p}`] === tossW) cum[p] += 1; // +1 toss on top
+                } else {
+                  if (bets[`${match.id}__${p}`] === winner) cum[p] += 2;
+                  if (tossW && tossGuesses[`${match.id}__${p}`] === tossW) cum[p] += 1;
+                }
               });
               data.push({
                 label: `M${i + 1}`,
