@@ -1093,16 +1093,16 @@ export default function App() {
 
   // IPL Points Table state
   const [iplTable, setIplTable] = useState([
-    { team:"RCB",  played:0, won:0, lost:0, nrr:"+0.000", pts:0 },
-    { team:"MI",   played:0, won:0, lost:0, nrr:"+0.000", pts:0 },
-    { team:"CSK",  played:0, won:0, lost:0, nrr:"+0.000", pts:0 },
-    { team:"KKR",  played:0, won:0, lost:0, nrr:"+0.000", pts:0 },
-    { team:"SRH",  played:0, won:0, lost:0, nrr:"+0.000", pts:0 },
-    { team:"DC",   played:0, won:0, lost:0, nrr:"+0.000", pts:0 },
-    { team:"RR",   played:0, won:0, lost:0, nrr:"+0.000", pts:0 },
-    { team:"PBKS", played:0, won:0, lost:0, nrr:"+0.000", pts:0 },
-    { team:"LSG",  played:0, won:0, lost:0, nrr:"+0.000", pts:0 },
-    { team:"GT",   played:0, won:0, lost:0, nrr:"+0.000", pts:0 },
+    { team:"RCB",  played:0, won:0, lost:0, nr:0, nrr:"+0.000", pts:0 },
+    { team:"MI",   played:0, won:0, lost:0, nr:0, nrr:"+0.000", pts:0 },
+    { team:"CSK",  played:0, won:0, lost:0, nr:0, nrr:"+0.000", pts:0 },
+    { team:"KKR",  played:0, won:0, lost:0, nr:0, nrr:"+0.000", pts:0 },
+    { team:"SRH",  played:0, won:0, lost:0, nr:0, nrr:"+0.000", pts:0 },
+    { team:"DC",   played:0, won:0, lost:0, nr:0, nrr:"+0.000", pts:0 },
+    { team:"RR",   played:0, won:0, lost:0, nr:0, nrr:"+0.000", pts:0 },
+    { team:"PBKS", played:0, won:0, lost:0, nr:0, nrr:"+0.000", pts:0 },
+    { team:"LSG",  played:0, won:0, lost:0, nr:0, nrr:"+0.000", pts:0 },
+    { team:"GT",   played:0, won:0, lost:0, nr:0, nrr:"+0.000", pts:0 },
   ]);
 
   // ─────────────────────────────────────────────────────────────
@@ -1728,14 +1728,14 @@ export default function App() {
               {/* IPL Points Table */}
               <div style={{fontFamily:"'Syne',sans-serif",fontSize:13,color:"#FFD700",fontWeight:800,marginBottom:10,letterSpacing:0.5}}>🏏 IPL 2026 POINTS TABLE</div>
               <div style={{...S.card(),padding:0,overflow:"hidden",marginBottom:16}}>
-                <div style={{background:"#0A1420",padding:"8px 12px",display:"grid",gridTemplateColumns:"28px 1fr 32px 32px 32px 50px 32px",gap:4,fontSize:9,fontWeight:700,color:"#4A6080",letterSpacing:0.5}}>
-                  <div>#</div><div>TEAM</div><div style={{textAlign:"center"}}>P</div><div style={{textAlign:"center"}}>W</div><div style={{textAlign:"center"}}>L</div><div style={{textAlign:"center"}}>NRR</div><div style={{textAlign:"center"}}>PTS</div>
+                <div style={{background:"#0A1420",padding:"8px 12px",display:"grid",gridTemplateColumns:"28px 1fr 32px 32px 32px 24px 50px 32px",gap:4,fontSize:9,fontWeight:700,color:"#4A6080",letterSpacing:0.5}}>
+                  <div>#</div><div>TEAM</div><div style={{textAlign:"center"}}>P</div><div style={{textAlign:"center"}}>W</div><div style={{textAlign:"center"}}>L</div><div style={{textAlign:"center",color:"#60A5FA"}}>NR</div><div style={{textAlign:"center"}}>NRR</div><div style={{textAlign:"center"}}>PTS</div>
                 </div>
                 {[...iplTable].sort((a,b)=>b.pts-a.pts||parseFloat(b.nrr)-parseFloat(a.nrr)).map((row,i)=>{
                   const t = IPL_TEAMS[row.team];
                   const isTop4 = i < 4;
                   return (
-                    <div key={row.team} style={{padding:"8px 12px",display:"grid",gridTemplateColumns:"28px 1fr 32px 32px 32px 50px 32px",gap:4,alignItems:"center",borderTop:"1px solid #0A1420",background:isTop4?"#FFD70008":"transparent"}}>
+                    <div key={row.team} style={{padding:"8px 12px",display:"grid",gridTemplateColumns:"28px 1fr 32px 32px 32px 24px 50px 32px",gap:4,alignItems:"center",borderTop:"1px solid #0A1420",background:isTop4?"#FFD70008":"transparent"}}>
                       <div style={{fontSize:11,fontWeight:800,color:isTop4?"#FFD700":"#4A6080"}}>{i+1}</div>
                       <div style={{display:"flex",alignItems:"center",gap:6}}>
                         <div style={{width:22,height:22,borderRadius:"50%",background:t?.color||"#1A3050",border:`1px solid ${t?.accent||"#2A4060"}`,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
@@ -1746,8 +1746,9 @@ export default function App() {
                       <div style={{fontSize:11,color:"#7A90B0",textAlign:"center"}}>{row.played}</div>
                       <div style={{fontSize:11,color:"#22C55E",textAlign:"center",fontWeight:700}}>{row.won}</div>
                       <div style={{fontSize:11,color:"#EF4444",textAlign:"center"}}>{row.lost}</div>
+                      <div style={{fontSize:11,fontWeight:800,color:"#60A5FA",textAlign:"center"}}>{row.nr||0}</div>
                       <div style={{fontSize:10,color:"#7A90B0",textAlign:"center"}}>{row.nrr}</div>
-                      <div style={{fontSize:12,fontWeight:800,color:"#FFD700",textAlign:"center"}}>{row.pts}</div>
+                      <div style={{fontSize:12,fontWeight:800,color:"#FFD700",textAlign:"center"}}>{(row.won*2)+(row.nr||0)}</div>
                     </div>
                   );
                 })}
@@ -2214,11 +2215,11 @@ export default function App() {
             {/* IPL Table Editor */}
             <div style={{fontFamily:"'Syne',sans-serif",fontSize:13,color:"#FFD700",fontWeight:800,margin:"16px 0 10px",letterSpacing:0.5}}>🏏 UPDATE IPL POINTS TABLE</div>
             <div style={{...S.card(),padding:0,overflow:"hidden",marginBottom:12}}>
-              <div style={{background:"#0A1420",padding:"8px 12px",display:"grid",gridTemplateColumns:"1fr 40px 40px 40px 64px 40px",gap:6,fontSize:9,fontWeight:700,color:"#4A6080"}}>
-                <div>TEAM</div><div style={{textAlign:"center"}}>P</div><div style={{textAlign:"center"}}>W</div><div style={{textAlign:"center"}}>L</div><div style={{textAlign:"center"}}>NRR</div><div style={{textAlign:"center"}}>PTS</div>
+              <div style={{background:"#0A1420",padding:"8px 12px",display:"grid",gridTemplateColumns:"1fr 40px 40px 40px 36px 64px 40px",gap:6,fontSize:9,fontWeight:700,color:"#4A6080"}}>
+                <div>TEAM</div><div style={{textAlign:"center"}}>P</div><div style={{textAlign:"center"}}>W</div><div style={{textAlign:"center"}}>L</div><div style={{textAlign:"center",color:"#60A5FA"}}>NR</div><div style={{textAlign:"center"}}>NRR</div><div style={{textAlign:"center"}}>PTS</div>
               </div>
               {iplTable.map((row,i) => (
-                <div key={row.team} style={{padding:"6px 12px",display:"grid",gridTemplateColumns:"1fr 40px 40px 40px 64px 40px",gap:6,alignItems:"center",borderTop:"1px solid #0A1420"}}>
+                <div key={row.team} style={{padding:"6px 12px",display:"grid",gridTemplateColumns:"1fr 40px 40px 40px 36px 64px 40px",gap:6,alignItems:"center",borderTop:"1px solid #0A1420"}}>
                   <div style={{fontSize:11,fontWeight:700,color:IPL_TEAMS[row.team]?.color||"#E2E8F8"}}>{row.team}</div>
                   {["played","won","lost"].map(field => (
                     <input key={field} type="number" value={row[field]}
@@ -2227,7 +2228,7 @@ export default function App() {
                         const updated = iplTable.map((r,j) => {
                           if (j !== i) return r;
                           const newRow = {...r, [field]: val};
-                          newRow.pts = newRow.won * 2;
+                          newRow.pts = (newRow.won * 2) + (newRow.nr || 0);
                           return newRow;
                         });
                         setIplTable(updated);
@@ -2236,6 +2237,21 @@ export default function App() {
                       style={{width:"100%",background:"#0A1420",border:"1px solid #1A3050",borderRadius:6,color:"#E2E8F8",fontSize:11,padding:"4px",textAlign:"center"}}
                     />
                   ))}
+                  {/* NR (No Result / Abandoned) */}
+                  <input type="number" value={row.nr||0}
+                    onChange={e => {
+                      const val = parseInt(e.target.value)||0;
+                      const updated = iplTable.map((r,j) => {
+                        if (j !== i) return r;
+                        const newRow = {...r, nr: val};
+                        newRow.pts = (newRow.won * 2) + val;
+                        return newRow;
+                      });
+                      setIplTable(updated);
+                      set(ref(db,"iplTable"), updated);
+                    }}
+                    style={{width:"100%",background:"#0A1420",border:"1px solid #60A5FA44",borderRadius:6,color:"#60A5FA",fontSize:11,padding:"4px",textAlign:"center"}}
+                  />
                   <input type="text" value={row.nrr}
                     onChange={e => {
                       const updated = iplTable.map((r,j) => j===i ? {...r, nrr: e.target.value} : r);
@@ -2244,10 +2260,10 @@ export default function App() {
                     }}
                     style={{width:"100%",background:"#0A1420",border:"1px solid #1A3050",borderRadius:6,color:"#E2E8F8",fontSize:11,padding:"4px",textAlign:"center"}}
                   />
-                  <div style={{fontSize:12,fontWeight:800,color:"#FFD700",textAlign:"center"}}>{row.won*2}</div>
+                  <div style={{fontSize:12,fontWeight:800,color:"#FFD700",textAlign:"center"}}>{(row.won*2)+(row.nr||0)}</div>
                 </div>
               ))}
-              <div style={{padding:"8px 12px",fontSize:9,color:"#2A4060",borderTop:"1px solid #0A1420",textAlign:"center"}}>Points = W×2 · Changes sync instantly to all phones</div>
+              <div style={{padding:"8px 12px",fontSize:9,color:"#2A4060",borderTop:"1px solid #0A1420",textAlign:"center"}}>Points = W×2 + NR×1 · NR = Abandoned/No Result · Syncs instantly</div>
             </div>
 
             <button onClick={() => { setAdminMode(false); setTab("leaderboard"); }}
