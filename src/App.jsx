@@ -811,18 +811,26 @@ export default function App() {
       const tossWinner = getEffectiveTossWinner(match);
       const manual = manualResults[fbKey(match.id)];
 
-      // Abandoned match: everyone gets +1, toss winner (if known) gets normal +1 only
+      // Abandoned match logic:
+      // Scenario 1 — wash before toss: everyone gets +1 flat
+      // Scenario 2 — wash after toss: correct toss = +1 toss + +1 abandon = +2, wrong toss = +1 abandon only
       if (isAbandoned) {
+        const tossHappened = manual?.abandonedWithToss === true;
         for (const player of PLAYERS) {
           const betKey = `${match.id}__${player}`;
           const myToss = tossGuesses[betKey];
-          let gained = 1; // everyone gets +1 consolation
-          const parts = ["+1 washout 🌧️"];
+          let gained = 0;
+          const parts = [];
 
-          // If toss happened and this player got it right — they still only get +1
-          // (already included in consolation, no double counting)
-          if (tossWinner && myToss === tossWinner) {
-            parts[0] = "+1 toss 🪙"; // label it as toss rather than consolation
+          if (tossHappened && tossWinner) {
+            // Wash after toss — toss correct gets +1, everyone also gets +1 abandon
+            if (myToss === tossWinner) {
+              gained += 1; parts.push("+1 toss 🪙");
+            }
+            gained += 1; parts.push("+1 abandon 🌧️");
+          } else {
+            // Wash before toss — flat +1 for everyone
+            gained = 1; parts.push("+1 abandon 🌧️");
           }
 
           pts[player] += gained;
