@@ -231,7 +231,6 @@ const IPL_SQUADS = {
       { name:"Sandeep Sharma",      role:"Bowler",      country:"India",       cap:"₹75L",    isOverseas:false, isCap:false },
       { name:"Nandre Burger",       role:"Bowler",      country:"S. Africa",   cap:"₹50L",    isOverseas:true,  isCap:false },
       { name:"Adam Milne",          role:"Bowler",      country:"N. Zealand",  cap:"₹75L",    isOverseas:true,  isCap:false },
-      { name:"Ravi Bishnoi",        role:"Bowler",      country:"India",       cap:"₹7.5Cr",  isOverseas:false, isCap:false },      
       { name:"Kwena Maphaka",       role:"Bowler",      country:"S. Africa",   cap:"₹30L",    isOverseas:true,  isCap:false },
       { name:"Tushar Deshpande",    role:"Bowler",      country:"India",       cap:"₹2Cr",    isOverseas:false, isCap:false },
       { name:"Kuldeep Sen",         role:"Bowler",      country:"India",       cap:"₹75L",    isOverseas:false, isCap:false },
@@ -348,6 +347,7 @@ const IPL_SQUADS = {
       { name:"Abdul Samad",         role:"All-Rounder", country:"India",       cap:"₹75L",    isOverseas:false, isCap:false },
       { name:"Arjun Tendulkar",     role:"All-Rounder", country:"India",       cap:"₹30L",    isOverseas:false, isCap:false },
       { name:"Mayank Yadav",        role:"Bowler",      country:"India",       cap:"₹11Cr",   isOverseas:false, isCap:false },
+      { name:"Ravi Bishnoi",        role:"Bowler",      country:"India",       cap:"₹11Cr",   isOverseas:false, isCap:false },
       { name:"Anrich Nortje",       role:"Bowler",      country:"S. Africa",   cap:"₹6.5Cr",  isOverseas:true,  isCap:false },
       { name:"Avesh Khan",          role:"Bowler",      country:"India",       cap:"₹2Cr",    isOverseas:false, isCap:false },
       { name:"Mohsin Khan",         role:"Bowler",      country:"India",       cap:"₹75L",    isOverseas:false, isCap:false },
@@ -804,10 +804,38 @@ export default function App() {
 
     for (const match of matches) {
       const status = getEffectiveStatus(match);
-      if (status !== "completed" && status !== "live") continue;
+      const isAbandoned = status === "abandoned";
+      if (status !== "completed" && status !== "live" && !isAbandoned) continue;
+
       const winner = getEffectiveWinner(match);
       const tossWinner = getEffectiveTossWinner(match);
-      // Need at least toss winner or match winner to calculate anything
+      const manual = manualResults[fbKey(match.id)];
+
+      // Abandoned match: everyone gets +1, toss winner (if known) gets normal +1 only
+      if (isAbandoned) {
+        for (const player of PLAYERS) {
+          const betKey = `${match.id}__${player}`;
+          const myToss = tossGuesses[betKey];
+          let gained = 1; // everyone gets +1 consolation
+          const parts = ["+1 washout 🌧️"];
+
+          // If toss happened and this player got it right — they still only get +1
+          // (already included in consolation, no double counting)
+          if (tossWinner && myToss === tossWinner) {
+            parts[0] = "+1 toss 🪙"; // label it as toss rather than consolation
+          }
+
+          pts[player] += gained;
+          breakdown[player].push({
+            matchId: match.id, home: match.home, away: match.away,
+            winner: null, myBet: bets[`${match.id}__${player}`], myToss, gained, parts,
+            abandoned: true,
+          });
+        }
+        continue;
+      }
+
+      // Normal match — need at least toss winner or match winner
       if (!winner && !tossWinner) continue;
 
       for (const player of PLAYERS) {
@@ -858,7 +886,7 @@ export default function App() {
 
   const upcomingMatches = matches.filter(m => getEffectiveStatus(m) === "upcoming");
   const liveMatches = matches.filter(m => getEffectiveStatus(m) === "live");
-  const completedMatches = matches.filter(m => getEffectiveStatus(m) === "completed");
+  const completedMatches = matches.filter(m => getEffectiveStatus(m) === "completed" || getEffectiveStatus(m) === "abandoned");
 
   // ── Admin tap ─────────────────────────────────────────────────
   function handleSecretTap() {
@@ -1223,7 +1251,7 @@ export default function App() {
                     <div style={{ marginTop: 10, display: "flex", gap: 6, flexWrap: "wrap" }}>
                       {breakdown[player].slice(-4).map((b, bi) => (
                         <span key={bi} style={{ fontSize: 10, background: "#0A1420", color: b.gained > 0 ? "#22C55E" : "#4A6080", padding: "3px 8px", borderRadius: 20, border: `1px solid ${b.gained > 0 ? "#22C55E33" : "#1A3050"}` }}>
-                          {b.home}v{b.away}: {b.gained > 0 ? b.parts.join(" ") : "❌"}
+                          {b.home}v{b.away}: {b.abandoned ? b.parts.join(" ") : b.gained > 0 ? b.parts.join(" ") : "❌"}
                         </span>
                       ))}
                     </div>
@@ -1467,7 +1495,7 @@ export default function App() {
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
                     <span style={{ fontSize: 10, color: "#4A6080" }}>Match {idx + 1} · {fmtMatchDate(match.rawDate)}</span>
                     <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: status === "live" ? "#EF444422" : status === "completed" ? "#14532D22" : "#FF6B2B22", color: status === "live" ? "#EF4444" : status === "completed" ? "#22C55E" : "#FF6B2B" }}>
-                      {status === "live" ? "🔴 LIVE" : status === "completed" ? "✅ Done" : "🕐 Soon"}
+                      {status === "live" ? "🔴 LIVE" : status === "completed" ? "✅ Done" : status === "abandoned" ? "🌧️ Abandoned" : "🕐 Soon"}
                     </span>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -1477,7 +1505,7 @@ export default function App() {
                     </div>
                     <div style={{ flex: 1, textAlign: "center" }}>
                       <div style={{ fontSize: 12, fontWeight: 800, color: winner ? "#FFD700" : "#E2E8F8" }}>
-                        {status === "completed" ? `${winner} won` : status === "live" ? "In Progress 🔴" : fmtMatchTime(match.rawDate)}
+                        {status === "completed" ? `${winner} won` : status === "abandoned" ? "🌧️ Abandoned" : status === "live" ? "In Progress 🔴" : fmtMatchTime(match.rawDate)}
                       </div>
                       <div style={{ fontSize: 9, color: "#2A4060", marginTop: 2 }}>🏟 {match.venue.split(",")[0]}</div>
                     </div>
@@ -2009,9 +2037,10 @@ export default function App() {
 
               // Status pill config
               const statusConfig = {
-                upcoming: { label: "🕐 Upcoming", color: "#FF6B2B", bg: "#FF6B2B18" },
-                live:     { label: "🔴 Live",     color: "#EF4444", bg: "#EF444418" },
-                completed:{ label: "✅ Done",      color: "#22C55E", bg: "#22C55E18" },
+                upcoming:  { label: "🕐 Upcoming",  color: "#FF6B2B", bg: "#FF6B2B18" },
+                live:      { label: "🔴 Live",      color: "#EF4444", bg: "#EF444418" },
+                completed: { label: "✅ Done",       color: "#22C55E", bg: "#22C55E18" },
+                abandoned: { label: "🌧️ Abandoned", color: "#60A5FA", bg: "#60A5FA18" },
               }[status] || { label: status, color: "#7A90B0", bg: "#1A3050" };
 
               return (
@@ -2099,8 +2128,32 @@ export default function App() {
                     </div>
                   )}
 
+                  {/* Abandon match button — for washouts */}
+                  {status !== "abandoned" && status !== "completed" && (
+                    <div style={{ marginBottom: 8 }}>
+                      <div style={{ fontSize: 9, color: "#4A6080", marginBottom: 6, fontWeight: 700, letterSpacing: 0.3 }}>🌧️ MATCH ABANDONED / WASHOUT:</div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button onClick={() => update(ref(db, `manualResults/${fbKey(match.id)}`), { status: "abandoned", abandonedWithToss: false })}
+                          style={{ flex: 1, padding: "8px", borderRadius: 8, border: "1px solid #60A5FA55", background: "#60A5FA11", color: "#60A5FA", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                          🌧️ Wash Before Toss<br/><span style={{ fontSize: 9, fontWeight: 400, color: "#4A6080" }}>+1 everyone</span>
+                        </button>
+                        <button onClick={() => update(ref(db, `manualResults/${fbKey(match.id)}`), { status: "abandoned", abandonedWithToss: true, tossWinner: manual.tossWinner || null })}
+                          style={{ flex: 1, padding: "8px", borderRadius: 8, border: "1px solid #60A5FA55", background: "#60A5FA11", color: "#60A5FA", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                          🌧️ Wash After Toss<br/><span style={{ fontSize: 9, fontWeight: 400, color: "#4A6080" }}>set toss winner below</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Abandoned status */}
+                  {status === "abandoned" && (
+                    <div style={{ background: "#60A5FA11", border: "1px solid #60A5FA44", borderRadius: 8, padding: "8px 12px", marginBottom: 8, fontSize: 11, color: "#60A5FA", fontWeight: 700 }}>
+                      🌧️ Match abandoned — {manual.abandonedWithToss ? "toss had happened (+1 toss correct, +1 all others)" : "+1 point awarded to everyone"}
+                    </div>
+                  )}
+
                   {/* Reset button */}
-                  {(manual.winner || manual.status === "live") && (
+                  {(manual.winner || manual.status === "live" || manual.status === "abandoned") && (
                     <button onClick={() => set(ref(db, `manualResults/${fbKey(match.id)}`), null)}
                       style={{ width: "100%", padding: "7px", borderRadius: 8, border: "1px solid #7F1D1D55", background: "transparent", color: "#EF444488", fontSize: 11, cursor: "pointer" }}>
                       ↩ Reset this match
