@@ -213,9 +213,9 @@ const IPL_SQUADS = {
     ]
   },
   RR: {
-    captain: "Riyan Parag", coach: "Rahul Dravid",
+    captain: "Riyan @$$#0le Parag", coach: "Rahul Dravid",
     players: [
-      { name:"Riyan Parag",         role:"All-Rounder", country:"India",       cap:"₹14Cr",   isOverseas:false, isCap:true  },
+      { name:"Riyan @$$#0le Parag", role:"All-Rounder", country:"India",       cap:"₹14Cr",   isOverseas:false, isCap:true  },
       { name:"Yashasvi Jaiswal",    role:"Batter",      country:"India",       cap:"₹18Cr",   isOverseas:false, isCap:false },
       { name:"Vaibhav Suryavanshi", role:"Batter",      country:"India",       cap:"₹1.1Cr",  isOverseas:false, isCap:false },
       { name:"Shimron Hetmyer",     role:"Batter",      country:"W. Indies",   cap:"₹11.5Cr", isOverseas:true,  isCap:false },
