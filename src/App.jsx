@@ -567,6 +567,7 @@ export default function App() {
   const [expandedMatch, setExpandedMatch] = useState(null);
   const [selectedTeam, setSelectedTeam] = useState("RCB");
   const [standingsFetchStatus, setStandingsFetchStatus] = useState("idle"); // idle | loading | success | error
+  const [fetchSource, setFetchSource] = useState(""); // which source succeeded
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState("");
   const [chatSender, setChatSender] = useState(null); // auto-detected from device
@@ -2446,8 +2447,9 @@ export default function App() {
                       });
                       setIplTable(updated);
                       set(ref(db, "iplTable"), updated);
+                      setFetchSource(json.source || "web");
                       setStandingsFetchStatus("success");
-                      notify("✅ Standings updated from iplt20.com!");
+                      notify(`✅ Standings updated from ${json.source}!`);
                       return;
                     }
                     throw new Error(json.error || "No data returned");
@@ -2483,8 +2485,9 @@ Return ONLY the JSON array, nothing else.`
                           });
                           setIplTable(updated);
                           set(ref(db, "iplTable"), updated);
+                          setFetchSource("Claude AI search");
                           setStandingsFetchStatus("success");
-                          notify("✅ Standings updated via Claude search!");
+                          notify("✅ Standings updated via Claude AI search!");
                           return;
                         }
                       }
@@ -2496,8 +2499,8 @@ Return ONLY the JSON array, nothing else.`
                   }
                 }}
                 style={{flex:1,padding:"10px",borderRadius:10,border:"1px solid #FFD70055",background: standingsFetchStatus === "loading" ? "#FFD70011" : standingsFetchStatus === "success" ? "#22C55E22" : standingsFetchStatus === "error" ? "#EF444422" : "#FFD70011",color: standingsFetchStatus === "success" ? "#22C55E" : standingsFetchStatus === "error" ? "#EF4444" : "#FFD700",fontSize:12,fontWeight:700,cursor: standingsFetchStatus === "loading" ? "wait" : "pointer"}}>
-                {standingsFetchStatus === "loading" ? "⏳ Fetching from iplt20.com..." :
-                 standingsFetchStatus === "success" ? "✅ Updated! Check table below" :
+                {standingsFetchStatus === "loading" ? "⏳ Trying ESPNcricinfo → CricTracker → Cricbuzz..." :
+                 standingsFetchStatus === "success" ? `✅ Updated via ${fetchSource}! Check below` :
                  standingsFetchStatus === "error"   ? "❌ Failed — edit manually below" :
                  "🔄 Auto-fetch Live Standings"}
               </button>
@@ -2729,3 +2732,4 @@ Return ONLY the JSON array, nothing else.`
     </div>
   );
 }
+
