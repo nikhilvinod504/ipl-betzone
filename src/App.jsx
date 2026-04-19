@@ -568,7 +568,11 @@ export default function App() {
   const [selectedTeam, setSelectedTeam] = useState("RCB");
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState("");
-  const [chatSender, setChatSender] = useState(null); // auto-detected from device // tracks which match is expanded for betting
+  const [chatSender, setChatSender] = useState(null); // auto-detected from device
+  const [lastSeenChat, setLastSeenChat] = useState(() => {
+    // Persist last seen timestamp in localStorage per device
+    try { return parseInt(localStorage.getItem("betzone_lastSeenChat") || "0"); } catch { return 0; }
+  });
   const [matchConfirm, setMatchConfirm] = useState(null); // matchId pending confirmation before opening
   const [customAvatars, setCustomAvatars] = useState({}); // avatar overrides from Firebase
   const [avatarPicker, setAvatarPicker] = useState(null); // player name whose avatar is being edited
@@ -635,6 +639,12 @@ export default function App() {
     setExpandedMatch(null);
     setMatchConfirm(null);
     setRevealedPicks({});
+    // Mark all messages as seen when chat tab is opened
+    if (tab === "chat") {
+      const now = Date.now();
+      setLastSeenChat(now);
+      try { localStorage.setItem("betzone_lastSeenChat", now.toString()); } catch {}
+    }
   }, [selectedPlayer, tab]);
 
   // Auto-detect chat sender from device profile on mount
@@ -1128,6 +1138,7 @@ export default function App() {
         * { box-sizing: border-box; margin: 0; padding: 0; }
         button:hover { opacity: 0.88; }
         @keyframes slideDown { from { transform: translateX(-50%) translateY(-10px); opacity:0; } to { transform: translateX(-50%) translateY(0); opacity:1; } }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
         ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: #060D1A; } ::-webkit-scrollbar-thumb { background: #1A3050; border-radius: 4px; }
       `}</style>
@@ -1187,11 +1198,32 @@ export default function App() {
       {/* Tabs */}
       <div style={{ ...S.tabBar, maxWidth: "none" }}>
         <div style={{ maxWidth: 640, margin: "0 auto", display: "flex", flex: 1 }}>
-          {TABS.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)} style={S.tab(tab === t.id)}>
-              {t.label}
-            </button>
-          ))}
+          {TABS.map(t => {
+            // Count unread chat messages not sent by current user
+            const unread = t.id === "chat" && tab !== "chat"
+              ? chatMessages.filter(m => m.timestamp > lastSeenChat && m.sender !== chatSender).length
+              : 0;
+            return (
+              <button key={t.id} onClick={() => setTab(t.id)} style={{ ...S.tab(tab === t.id), position: "relative" }}>
+                <span style={{ animation: unread > 0 ? "blink 1.2s ease-in-out infinite" : "none" }}>
+                  {t.label}
+                </span>
+                {unread > 0 && (
+                  <span style={{
+                    position: "absolute", top: 4, right: 2,
+                    background: "#EF4444", color: "#fff",
+                    fontSize: 8, fontWeight: 800,
+                    width: 14, height: 14, borderRadius: "50%",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    animation: "blink 1.2s ease-in-out infinite",
+                    border: "1px solid #060D1A",
+                  }}>
+                    {unread > 9 ? "9+" : unread}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -2094,6 +2126,10 @@ export default function App() {
             };
             set(ref(db, `chat/${ts}`), msg);
             setChatInput("");
+            // Update last seen so your own message doesn't count as unread
+            const now2 = Date.now();
+            setLastSeenChat(now2);
+            try { localStorage.setItem("betzone_lastSeenChat", now2.toString()); } catch {}
           }
 
           function deleteMessage(msgId) {
