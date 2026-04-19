@@ -213,9 +213,9 @@ const IPL_SQUADS = {
     ]
   },
   RR: {
-    captain: "Riyan @$$#0le Parag", coach: "Rahul Dravid",
+    captain: "Riyan Parag", coach: "Rahul Dravid",
     players: [
-      { name:"Riyan @$$#0le Parag", role:"All-Rounder", country:"India",       cap:"₹14Cr",   isOverseas:false, isCap:true  },
+      { name:"Riyan Parag",         role:"All-Rounder", country:"India",       cap:"₹14Cr",   isOverseas:false, isCap:true  },
       { name:"Yashasvi Jaiswal",    role:"Batter",      country:"India",       cap:"₹18Cr",   isOverseas:false, isCap:false },
       { name:"Vaibhav Suryavanshi", role:"Batter",      country:"India",       cap:"₹1.1Cr",  isOverseas:false, isCap:false },
       { name:"Shimron Hetmyer",     role:"Batter",      country:"W. Indies",   cap:"₹11.5Cr", isOverseas:true,  isCap:false },
@@ -565,7 +565,10 @@ export default function App() {
   const [revealedPicks, setRevealedPicks] = useState({}); // tracks which match picks are revealed
   const [spyLog, setSpyLog] = useState([]); // local session log of peek events
   const [expandedMatch, setExpandedMatch] = useState(null);
-  const [selectedTeam, setSelectedTeam] = useState("RCB"); // tracks which match is expanded for betting
+  const [selectedTeam, setSelectedTeam] = useState("RCB");
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatSender, setChatSender] = useState(null); // auto-detected from device // tracks which match is expanded for betting
   const [matchConfirm, setMatchConfirm] = useState(null); // matchId pending confirmation before opening
   const [customAvatars, setCustomAvatars] = useState({}); // avatar overrides from Firebase
   const [avatarPicker, setAvatarPicker] = useState(null); // player name whose avatar is being edited
@@ -595,6 +598,11 @@ export default function App() {
       onValue(ref(db, "tossGuesses"), snap => setTossGuesses(snap.val() || {})),
       onValue(ref(db, "manualResults"), snap => setManualResults(snap.val() || {})),
       onValue(ref(db, "iplTable"), snap => { if (snap.val()) setIplTable(snap.val()); }),
+      onValue(ref(db, "chat"), snap => {
+        const data = snap.val() || {};
+        const msgs = Object.values(data).sort((a, b) => a.timestamp - b.timestamp);
+        setChatMessages(msgs);
+      }),
       onValue(ref(db, "spyLog"), snap => {
         const data = snap.val() || {};
         const entries = Object.values(data).sort((a, b) => b.timestamp - a.timestamp);
@@ -628,6 +636,12 @@ export default function App() {
     setMatchConfirm(null);
     setRevealedPicks({});
   }, [selectedPlayer, tab]);
+
+  // Auto-detect chat sender from device profile on mount
+  useEffect(() => {
+    const info = getPlatformInfo();
+    if (info.likelyUser) setChatSender(info.likelyUser);
+  }, []);
 
   // ── Auto-lock: check every 5 mins if any match is within 30 mins ──
   useEffect(() => {
@@ -918,6 +932,7 @@ export default function App() {
     { id: "stats",       label: "📊 Stats" },
     { id: "spylog",      label: "🕵️ Log" },
     { id: "squad",       label: "🏏 Squad" },
+    { id: "chat",        label: "💬 Chat" },
     ...(adminMode ? [{ id: "admin", label: "⚙️ Admin" }] : []),
   ];
 
@@ -2055,6 +2070,168 @@ export default function App() {
                   </div>
                 );
               })}
+            </div>
+          );
+        })()}
+
+        {/* ── CHAT ── */}
+        {!loading && tab === "chat" && (() => {
+          const meta = chatSender ? PLAYER_META[chatSender] : null;
+
+          function sendMessage() {
+            if (!chatInput.trim()) return;
+            const info = getPlatformInfo();
+            const sender = chatSender || info.likelyUser || "Unknown";
+            const ts = Date.now();
+            const msg = {
+              id: ts,
+              sender,
+              text: chatInput.trim(),
+              timestamp: ts,
+              deviceType: info.deviceType,
+              timezone: info.timezone,
+              likelyUser: info.likelyUser || "Unknown",
+            };
+            set(ref(db, `chat/${ts}`), msg);
+            setChatInput("");
+          }
+
+          function deleteMessage(msgId) {
+            set(ref(db, `chat/${msgId}`), null);
+          }
+
+          function fmtChatTime(ts) {
+            const d = new Date(ts);
+            const localTZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+            const isIndia = localTZ.includes("Kolkata") || localTZ.includes("India");
+            const time = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+            const date = d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+            const ist = d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" });
+            if (isIndia) return `${date} · ${time} IST`;
+            return `${date} · ${time} (${ist} IST)`;
+          }
+
+          // Group messages by date
+          const groupedMsgs = chatMessages.reduce((acc, msg) => {
+            const day = new Date(msg.timestamp).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" });
+            if (!acc[day]) acc[day] = [];
+            acc[day].push(msg);
+            return acc;
+          }, {});
+
+          return (
+            <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 160px)" }}>
+              {/* Header */}
+              <div style={{ fontFamily:"'Syne',sans-serif", fontSize:13, color:"#FFD700", fontWeight:800, marginBottom:4, letterSpacing:0.5 }}>💬 BETZONE CHAT</div>
+              <div style={{ fontSize:11, color:"#4A6080", marginBottom:12 }}>Trash talk, banter and predictions 🔥</div>
+
+              {/* Sender identity */}
+              <div style={{ background:"#0D1828", border:`1px solid ${meta ? meta.color + "44" : "#1A3050"}`, borderRadius:12, padding:"10px 14px", marginBottom:12, display:"flex", alignItems:"center", gap:10 }}>
+                {meta ? (
+                  <>
+                    <div style={{ width:36, height:36, borderRadius:"50%", background:meta.light, border:`2px solid ${meta.color}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>
+                      {meta.emoji}
+                    </div>
+                    <div>
+                      <div style={{ fontSize:12, fontWeight:800, color:meta.color }}>Chatting as {chatSender}</div>
+                      <div style={{ fontSize:10, color:"#4A6080" }}>Auto-detected from your device 🎯</div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ width:36, height:36, borderRadius:"50%", background:"#1A3050", border:"2px solid #2A4060", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>❓</div>
+                    <div>
+                      <div style={{ fontSize:12, fontWeight:800, color:"#7A90B0" }}>Unknown device</div>
+                      <div style={{ fontSize:10, color:"#4A6080" }}>Select your name below to chat</div>
+                    </div>
+                  </>
+                )}
+                {/* Override sender */}
+                <div style={{ marginLeft:"auto", display:"flex", gap:6 }}>
+                  {PLAYERS.map(p => (
+                    <button key={p} onClick={() => setChatSender(p)}
+                      style={{ width:28, height:28, borderRadius:"50%", border:`2px solid ${chatSender === p ? PLAYER_META[p].color : "#1A3050"}`, background:chatSender === p ? PLAYER_META[p].light : "#0A1420", fontSize:14, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                      {PLAYER_META[p].emoji}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Messages */}
+              <div style={{ flex:1, overflowY:"auto", marginBottom:12 }}>
+                {chatMessages.length === 0 ? (
+                  <div style={{ textAlign:"center", padding:40, color:"#2A4060" }}>
+                    <div style={{ fontSize:40, marginBottom:10 }}>💬</div>
+                    <div style={{ fontWeight:700, fontSize:14, color:"#4A6080" }}>No messages yet!</div>
+                    <div style={{ fontSize:11, marginTop:6 }}>Start the trash talk 🔥</div>
+                  </div>
+                ) : (
+                  Object.entries(groupedMsgs).map(([day, msgs]) => (
+                    <div key={day}>
+                      {/* Date divider */}
+                      <div style={{ display:"flex", alignItems:"center", gap:8, margin:"12px 0 8px" }}>
+                        <div style={{ flex:1, height:1, background:"#1A3050" }} />
+                        <div style={{ fontSize:9, color:"#2A4060", fontWeight:700, letterSpacing:0.5 }}>{day}</div>
+                        <div style={{ flex:1, height:1, background:"#1A3050" }} />
+                      </div>
+                      {msgs.map(msg => {
+                        const senderMeta = PLAYER_META[msg.sender] || { emoji:"❓", color:"#7A90B0", light:"#7A90B018" };
+                        const isMe = msg.sender === chatSender;
+                        const mismatch = msg.likelyUser && msg.likelyUser !== "Unknown" && msg.likelyUser !== msg.sender;
+                        return (
+                          <div key={msg.id} style={{ display:"flex", flexDirection:isMe ? "row-reverse" : "row", alignItems:"flex-end", gap:8, marginBottom:10 }}>
+                            {/* Avatar */}
+                            <div style={{ width:30, height:30, borderRadius:"50%", background:senderMeta.light, border:`2px solid ${senderMeta.color}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, flexShrink:0 }}>
+                              {senderMeta.emoji}
+                            </div>
+                            {/* Bubble */}
+                            <div style={{ maxWidth:"72%", display:"flex", flexDirection:"column", alignItems:isMe ? "flex-end" : "flex-start" }}>
+                              {/* Sender name + time */}
+                              <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3 }}>
+                                {!isMe && <span style={{ fontSize:10, fontWeight:700, color:senderMeta.color }}>{msg.sender}</span>}
+                                <span style={{ fontSize:9, color:"#2A4060" }}>{fmtChatTime(msg.timestamp)}</span>
+                                {mismatch && <span style={{ fontSize:9, color:"#EF4444" }} title={`Device = ${msg.likelyUser}`}>⚠️</span>}
+                              </div>
+                              {/* Message bubble */}
+                              <div style={{ background:isMe ? senderMeta.color + "22" : "#0D1828", border:`1px solid ${isMe ? senderMeta.color + "55" : "#1A3050"}`, borderRadius:isMe ? "14px 14px 4px 14px" : "14px 14px 14px 4px", padding:"9px 13px", fontSize:13, color:"#E2E8F8", lineHeight:1.5, wordBreak:"break-word" }}>
+                                {msg.text}
+                              </div>
+                              {/* Device info */}
+                              <div style={{ fontSize:9, color:"#2A4060", marginTop:3 }}>{msg.deviceType}</div>
+                            </div>
+                            {/* Delete (own messages or admin) */}
+                            {(isMe || adminMode) && (
+                              <button onClick={() => deleteMessage(msg.id)}
+                                style={{ background:"transparent", border:"none", color:"#2A4060", fontSize:12, cursor:"pointer", padding:"2px 4px", flexShrink:0 }}>
+                                🗑
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Input bar */}
+              <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}>
+                <div style={{ flex:1, background:"#0D1828", border:`1px solid ${meta ? meta.color + "44" : "#1A3050"}`, borderRadius:14, padding:"10px 14px", display:"flex", alignItems:"center" }}>
+                  <textarea
+                    value={chatInput}
+                    onChange={e => setChatInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }}}
+                    placeholder={chatSender ? `Say something, ${chatSender}... 🔥` : "Select your name above first"}
+                    disabled={!chatSender}
+                    rows={1}
+                    style={{ flex:1, background:"transparent", border:"none", outline:"none", color:"#E2E8F8", fontSize:13, resize:"none", fontFamily:"'DM Sans',sans-serif", lineHeight:1.5 }}
+                  />
+                </div>
+                <button onClick={sendMessage} disabled={!chatInput.trim() || !chatSender}
+                  style={{ width:44, height:44, borderRadius:"50%", border:"none", background:meta ? meta.color : "#1A3050", color:"#fff", fontSize:18, cursor:chatInput.trim() && chatSender ? "pointer" : "default", opacity:chatInput.trim() && chatSender ? 1 : 0.4, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  ➤
+                </button>
+              </div>
             </div>
           );
         })()}
