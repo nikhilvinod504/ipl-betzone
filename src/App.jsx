@@ -2428,146 +2428,113 @@ export default function App() {
             })}
 
             {/* IPL Table Editor */}
-            <div style={{fontFamily:"'Syne',sans-serif",fontSize:13,color:"#FFD700",fontWeight:800,margin:"16px 0 6px",letterSpacing:0.5}}>🏏 UPDATE IPL POINTS TABLE</div>
+            <div style={{fontFamily:"'Syne',sans-serif",fontSize:13,color:"#FFD700",fontWeight:800,margin:"16px 0 6px",letterSpacing:0.5}}>🏏 IPL TEAM STANDINGS</div>
 
-            {/* Auto-fetch button */}
-            <div style={{marginBottom:10,display:"flex",gap:8,alignItems:"center"}}>
-              <button
-                disabled={standingsFetchStatus === "loading"}
-                onClick={async () => {
-                  setStandingsFetchStatus("loading");
-                  try {
-                    // Primary: Supabase Edge Function scrapes iplt20.com
-                    const res = await fetch("https://cjrvsdtzapnnkzftccmp.supabase.co/functions/v1/ipl-standings");
-                    const json = await res.json();
-                    if (json.success && json.data?.length >= 10) {
-                      const updated = iplTable.map(row => {
-                        const live = json.data.find(d => d.team === row.team);
-                        return live ? { ...row, ...live } : row;
-                      });
-                      setIplTable(updated);
-                      set(ref(db, "iplTable"), updated);
-                      setFetchSource(json.source || "web");
-                      setStandingsFetchStatus("success");
-                      notify(`✅ Standings updated from ${json.source}!`);
-                      return;
-                    }
-                    throw new Error(json.error || "No data returned");
-                  } catch (primaryErr) {
-                    // Fallback: Claude API with web search
-                    try {
-                      const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          model: "claude-sonnet-4-20250514",
-                          max_tokens: 1000,
-                          tools: [{ type: "web_search_20250305", name: "web_search" }],
-                          messages: [{
-                            role: "user",
-                            content: `Search for the current IPL 2026 points table standings right now and return ONLY a JSON array with no other text, like this:
-[{"team":"RCB","played":5,"won":4,"lost":1,"nr":0,"nrr":"+0.500","pts":8},...]
-Include all 10 teams: RCB, MI, CSK, KKR, SRH, DC, RR, PBKS, LSG, GT.
-Return ONLY the JSON array, nothing else.`
-                          }],
-                        }),
-                      });
-                      const claudeData = await claudeRes.json();
-                      const textBlocks = claudeData.content?.filter(b => b.type === "text") || [];
-                      const raw = textBlocks.map(b => b.text).join("");
-                      const match = raw.match(/\[[\s\S]*\]/);
-                      if (match) {
-                        const parsed = JSON.parse(match[0]);
-                        if (parsed.length >= 8) {
-                          const updated = iplTable.map(row => {
-                            const live = parsed.find(d => d.team === row.team);
-                            return live ? { ...row, ...live } : row;
-                          });
-                          setIplTable(updated);
-                          set(ref(db, "iplTable"), updated);
-                          setFetchSource("Claude AI search");
-                          setStandingsFetchStatus("success");
-                          notify("✅ Standings updated via Claude AI search!");
-                          return;
-                        }
-                      }
-                      throw new Error("Could not parse Claude response");
-                    } catch (fallbackErr) {
-                      setStandingsFetchStatus("error");
-                      notify("❌ Auto-fetch failed — please update manually below");
-                    }
-                  }
-                }}
-                style={{flex:1,padding:"10px",borderRadius:10,border:"1px solid #FFD70055",background: standingsFetchStatus === "loading" ? "#FFD70011" : standingsFetchStatus === "success" ? "#22C55E22" : standingsFetchStatus === "error" ? "#EF444422" : "#FFD70011",color: standingsFetchStatus === "success" ? "#22C55E" : standingsFetchStatus === "error" ? "#EF4444" : "#FFD700",fontSize:12,fontWeight:700,cursor: standingsFetchStatus === "loading" ? "wait" : "pointer"}}>
-                {standingsFetchStatus === "loading" ? "⏳ Trying ESPNcricinfo → CricTracker → Cricbuzz..." :
-                 standingsFetchStatus === "success" ? `✅ Updated via ${fetchSource}! Check below` :
-                 standingsFetchStatus === "error"   ? "❌ Failed — edit manually below" :
-                 "🔄 Auto-fetch Live Standings"}
-              </button>
-              {standingsFetchStatus !== "idle" && (
-                <button onClick={() => setStandingsFetchStatus("idle")}
-                  style={{padding:"10px 12px",borderRadius:10,border:"1px solid #1A3050",background:"transparent",color:"#4A6080",fontSize:11,cursor:"pointer"}}>
-                  Reset
-                </button>
-              )}
-            </div>
-            {standingsFetchStatus === "error" && (
-              <div style={{fontSize:10,color:"#EF444488",marginBottom:8,padding:"6px 10px",background:"#EF444411",borderRadius:8,border:"1px solid #EF444433"}}>
-                ⚠️ Both sources failed. Edit the table manually below — all changes sync instantly to all 3 phones.
-              </div>
-            )}
-            <div style={{...S.card(),padding:0,overflow:"hidden",marginBottom:12}}>
-              <div style={{background:"#0A1420",padding:"8px 12px",display:"grid",gridTemplateColumns:"1fr 40px 40px 40px 36px 64px 40px",gap:6,fontSize:9,fontWeight:700,color:"#4A6080"}}>
-                <div>TEAM</div><div style={{textAlign:"center"}}>P</div><div style={{textAlign:"center"}}>W</div><div style={{textAlign:"center"}}>L</div><div style={{textAlign:"center",color:"#60A5FA"}}>NR</div><div style={{textAlign:"center"}}>NRR</div><div style={{textAlign:"center"}}>PTS</div>
-              </div>
-              {iplTable.map((row,i) => (
-                <div key={row.team} style={{padding:"6px 12px",display:"grid",gridTemplateColumns:"1fr 40px 40px 40px 36px 64px 40px",gap:6,alignItems:"center",borderTop:"1px solid #0A1420"}}>
-                  <div style={{fontSize:11,fontWeight:700,color:IPL_TEAMS[row.team]?.color||"#E2E8F8"}}>{row.team}</div>
-                  {["played","won","lost"].map(field => (
-                    <input key={field} type="number" value={row[field]}
-                      onChange={e => {
-                        const val = parseInt(e.target.value)||0;
-                        const updated = iplTable.map((r,j) => {
-                          if (j !== i) return r;
-                          const newRow = {...r, [field]: val};
-                          newRow.pts = (newRow.won * 2) + (newRow.nr || 0);
-                          return newRow;
-                        });
-                        setIplTable(updated);
-                        set(ref(db,"iplTable"), updated);
-                      }}
-                      style={{width:"100%",background:"#0A1420",border:"1px solid #1A3050",borderRadius:6,color:"#E2E8F8",fontSize:11,padding:"4px",textAlign:"center"}}
-                    />
-                  ))}
-                  {/* NR (No Result / Abandoned) */}
-                  <input type="number" value={row.nr||0}
-                    onChange={e => {
-                      const val = parseInt(e.target.value)||0;
-                      const updated = iplTable.map((r,j) => {
-                        if (j !== i) return r;
-                        const newRow = {...r, nr: val};
-                        newRow.pts = (newRow.won * 2) + val;
-                        return newRow;
-                      });
-                      setIplTable(updated);
-                      set(ref(db,"iplTable"), updated);
-                    }}
-                    style={{width:"100%",background:"#0A1420",border:"1px solid #60A5FA44",borderRadius:6,color:"#60A5FA",fontSize:11,padding:"4px",textAlign:"center"}}
-                  />
-                  <input type="text" value={row.nrr}
-                    onChange={e => {
-                      const updated = iplTable.map((r,j) => j===i ? {...r, nrr: e.target.value} : r);
-                      setIplTable(updated);
-                      set(ref(db,"iplTable"), updated);
-                    }}
-                    style={{width:"100%",background:"#0A1420",border:"1px solid #1A3050",borderRadius:6,color:"#E2E8F8",fontSize:11,padding:"4px",textAlign:"center"}}
-                  />
-                  <div style={{fontSize:12,fontWeight:800,color:"#FFD700",textAlign:"center"}}>{(row.won*2)+(row.nr||0)}</div>
+            {/* Auto-calculate from match results */}
+            {(() => {
+              // Build standings from all completed/abandoned matches
+              const standing = {};
+              const ALL_TEAMS = ["RCB","MI","CSK","KKR","SRH","DC","RR","PBKS","LSG","GT"];
+              ALL_TEAMS.forEach(t => { standing[t] = { played:0, won:0, lost:0, nr:0 }; });
+
+              completedMatches.forEach(match => {
+                const status = getEffectiveStatus(match);
+                const winner = getEffectiveWinner(match);
+                const isAbandoned = status === "abandoned";
+                const h = match.home, a = match.away;
+                if (!standing[h] || !standing[a]) return;
+
+                if (isAbandoned) {
+                  standing[h].played++; standing[h].nr++;
+                  standing[a].played++; standing[a].nr++;
+                } else if (winner) {
+                  const loser = winner === h ? a : h;
+                  standing[winner].played++; standing[winner].won++;
+                  standing[loser].played++;  standing[loser].lost++;
+                }
+              });
+
+              // Sync computed values into iplTable (keep NRR manual)
+              const syncTable = () => {
+                const updated = iplTable.map(row => {
+                  const s = standing[row.team];
+                  if (!s) return row;
+                  return {
+                    ...row,
+                    played: s.played,
+                    won:    s.won,
+                    lost:   s.lost,
+                    nr:     s.nr,
+                    pts:    (s.won * 2) + s.nr,
+                  };
+                });
+                setIplTable(updated);
+                set(ref(db, "iplTable"), updated);
+                notify("✅ Standings auto-calculated from match results!");
+              };
+
+              return (
+                <div>
+                  {/* Auto-calculate button */}
+                  <div style={{marginBottom:10,display:"flex",gap:8}}>
+                    <button onClick={syncTable}
+                      style={{flex:1,padding:"10px",borderRadius:10,border:"1px solid #22C55E55",background:"#22C55E11",color:"#22C55E",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                      🔄 Auto-calculate from {completedMatches.length} match results
+                    </button>
+                  </div>
+                  <div style={{fontSize:9,color:"#4A6080",marginBottom:10,padding:"6px 10px",background:"#0A1420",borderRadius:8,lineHeight:1.6}}>
+                    ✅ P / W / L / NR / PTS calculated from your entered results · ✏️ Only NRR needs manual entry
+                  </div>
+
+                  {/* Table */}
+                  <div style={{...S.card(),padding:0,overflow:"hidden",marginBottom:12}}>
+                    <div style={{background:"#0A1420",padding:"8px 12px",display:"grid",gridTemplateColumns:"1fr 30px 30px 30px 30px 60px 36px",gap:6,fontSize:9,fontWeight:700,color:"#4A6080"}}>
+                      <div>TEAM</div>
+                      <div style={{textAlign:"center"}}>P</div>
+                      <div style={{textAlign:"center"}}>W</div>
+                      <div style={{textAlign:"center"}}>L</div>
+                      <div style={{textAlign:"center",color:"#60A5FA"}}>NR</div>
+                      <div style={{textAlign:"center"}}>NRR</div>
+                      <div style={{textAlign:"center"}}>PTS</div>
+                    </div>
+                    {iplTable.map((row,i) => {
+                      const s = standing[row.team] || {played:0,won:0,lost:0,nr:0};
+                      const pts = (s.won * 2) + s.nr;
+                      return (
+                        <div key={row.team} style={{padding:"6px 12px",display:"grid",gridTemplateColumns:"1fr 30px 30px 30px 30px 60px 36px",gap:6,alignItems:"center",borderTop:"1px solid #0A1420"}}>
+                          <div style={{fontSize:11,fontWeight:700,color:IPL_TEAMS[row.team]?.color||"#E2E8F8",display:"flex",alignItems:"center",gap:5}}>
+                            <div style={{width:16,height:16,borderRadius:"50%",overflow:"hidden",flexShrink:0}}>
+                              <img src={IPL_TEAMS[row.team]?.logo} style={{width:"100%",height:"100%",objectFit:"contain"}} />
+                            </div>
+                            {row.team}
+                          </div>
+                          {/* Auto-calculated read-only fields */}
+                          <div style={{textAlign:"center",fontSize:11,color:"#7A90B0"}}>{s.played}</div>
+                          <div style={{textAlign:"center",fontSize:11,color:"#22C55E",fontWeight:700}}>{s.won}</div>
+                          <div style={{textAlign:"center",fontSize:11,color:"#EF4444"}}>{s.lost}</div>
+                          <div style={{textAlign:"center",fontSize:11,color:"#60A5FA",fontWeight:700}}>{s.nr}</div>
+                          {/* NRR — only manual field */}
+                          <input type="text"
+                            value={row.nrr}
+                            onChange={e => {
+                              const updated = iplTable.map((r,j) => j===i ? {...r, nrr: e.target.value} : r);
+                              setIplTable(updated);
+                              set(ref(db,"iplTable"), updated);
+                            }}
+                            placeholder="+0.000"
+                            style={{width:"100%",background:"#0A1420",border:"1px solid #FFD70044",borderRadius:6,color:"#FFD700",fontSize:11,padding:"4px",textAlign:"center"}}
+                          />
+                          <div style={{textAlign:"center",fontSize:12,fontWeight:800,color:"#FFD700"}}>{pts}</div>
+                        </div>
+                      );
+                    })}
+                    <div style={{padding:"8px 12px",fontSize:9,color:"#2A4060",borderTop:"1px solid #0A1420",textAlign:"center"}}>
+                      P/W/L/NR/PTS auto-calculated · Only NRR (yellow) needs manual entry
+                    </div>
+                  </div>
                 </div>
-              ))}
-              <div style={{padding:"8px 12px",fontSize:9,color:"#2A4060",borderTop:"1px solid #0A1420",textAlign:"center"}}>Points = W×2 + NR×1 · NR = Abandoned/No Result · Syncs instantly</div>
-            </div>
-
+              );
+            })()}
             <button onClick={() => { setAdminMode(false); setTab("leaderboard"); }}
               style={{ ...S.btn("#1A3050", "#7A90B0"), width: "100%", marginTop: 8 }}>
               ← Exit Admin
