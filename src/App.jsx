@@ -566,6 +566,7 @@ export default function App() {
   const [spyLog, setSpyLog] = useState([]); // local session log of peek events
   const [expandedMatch, setExpandedMatch] = useState(null);
   const [selectedTeam, setSelectedTeam] = useState("RCB");
+  const [standingsFetchStatus, setStandingsFetchStatus] = useState("idle"); // idle | loading | success | error
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState("");
   const [chatSender, setChatSender] = useState(null); // auto-detected from device
@@ -2426,7 +2427,92 @@ export default function App() {
             })}
 
             {/* IPL Table Editor */}
-            <div style={{fontFamily:"'Syne',sans-serif",fontSize:13,color:"#FFD700",fontWeight:800,margin:"16px 0 10px",letterSpacing:0.5}}>🏏 UPDATE IPL POINTS TABLE</div>
+            <div style={{fontFamily:"'Syne',sans-serif",fontSize:13,color:"#FFD700",fontWeight:800,margin:"16px 0 6px",letterSpacing:0.5}}>🏏 UPDATE IPL POINTS TABLE</div>
+
+            {/* Auto-fetch button */}
+            <div style={{marginBottom:10,display:"flex",gap:8,alignItems:"center"}}>
+              <button
+                disabled={standingsFetchStatus === "loading"}
+                onClick={async () => {
+                  setStandingsFetchStatus("loading");
+                  try {
+                    // Primary: Supabase Edge Function scrapes iplt20.com
+                    const res = await fetch("https://cjrvsdtzapnnkzftccmp.supabase.co/functions/v1/ipl-standings");
+                    const json = await res.json();
+                    if (json.success && json.data?.length >= 10) {
+                      const updated = iplTable.map(row => {
+                        const live = json.data.find(d => d.team === row.team);
+                        return live ? { ...row, ...live } : row;
+                      });
+                      setIplTable(updated);
+                      set(ref(db, "iplTable"), updated);
+                      setStandingsFetchStatus("success");
+                      notify("✅ Standings updated from iplt20.com!");
+                      return;
+                    }
+                    throw new Error(json.error || "No data returned");
+                  } catch (primaryErr) {
+                    // Fallback: Claude API with web search
+                    try {
+                      const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          model: "claude-sonnet-4-20250514",
+                          max_tokens: 1000,
+                          tools: [{ type: "web_search_20250305", name: "web_search" }],
+                          messages: [{
+                            role: "user",
+                            content: `Search for the current IPL 2026 points table standings right now and return ONLY a JSON array with no other text, like this:
+[{"team":"RCB","played":5,"won":4,"lost":1,"nr":0,"nrr":"+0.500","pts":8},...]
+Include all 10 teams: RCB, MI, CSK, KKR, SRH, DC, RR, PBKS, LSG, GT.
+Return ONLY the JSON array, nothing else.`
+                          }],
+                        }),
+                      });
+                      const claudeData = await claudeRes.json();
+                      const textBlocks = claudeData.content?.filter(b => b.type === "text") || [];
+                      const raw = textBlocks.map(b => b.text).join("");
+                      const match = raw.match(/\[[\s\S]*\]/);
+                      if (match) {
+                        const parsed = JSON.parse(match[0]);
+                        if (parsed.length >= 8) {
+                          const updated = iplTable.map(row => {
+                            const live = parsed.find(d => d.team === row.team);
+                            return live ? { ...row, ...live } : row;
+                          });
+                          setIplTable(updated);
+                          set(ref(db, "iplTable"), updated);
+                          setStandingsFetchStatus("success");
+                          notify("✅ Standings updated via Claude search!");
+                          return;
+                        }
+                      }
+                      throw new Error("Could not parse Claude response");
+                    } catch (fallbackErr) {
+                      setStandingsFetchStatus("error");
+                      notify("❌ Auto-fetch failed — please update manually below");
+                    }
+                  }
+                }}
+                style={{flex:1,padding:"10px",borderRadius:10,border:"1px solid #FFD70055",background: standingsFetchStatus === "loading" ? "#FFD70011" : standingsFetchStatus === "success" ? "#22C55E22" : standingsFetchStatus === "error" ? "#EF444422" : "#FFD70011",color: standingsFetchStatus === "success" ? "#22C55E" : standingsFetchStatus === "error" ? "#EF4444" : "#FFD700",fontSize:12,fontWeight:700,cursor: standingsFetchStatus === "loading" ? "wait" : "pointer"}}>
+                {standingsFetchStatus === "loading" ? "⏳ Fetching from iplt20.com..." :
+                 standingsFetchStatus === "success" ? "✅ Updated! Check table below" :
+                 standingsFetchStatus === "error"   ? "❌ Failed — edit manually below" :
+                 "🔄 Auto-fetch Live Standings"}
+              </button>
+              {standingsFetchStatus !== "idle" && (
+                <button onClick={() => setStandingsFetchStatus("idle")}
+                  style={{padding:"10px 12px",borderRadius:10,border:"1px solid #1A3050",background:"transparent",color:"#4A6080",fontSize:11,cursor:"pointer"}}>
+                  Reset
+                </button>
+              )}
+            </div>
+            {standingsFetchStatus === "error" && (
+              <div style={{fontSize:10,color:"#EF444488",marginBottom:8,padding:"6px 10px",background:"#EF444411",borderRadius:8,border:"1px solid #EF444433"}}>
+                ⚠️ Both sources failed. Edit the table manually below — all changes sync instantly to all 3 phones.
+              </div>
+            )}
             <div style={{...S.card(),padding:0,overflow:"hidden",marginBottom:12}}>
               <div style={{background:"#0A1420",padding:"8px 12px",display:"grid",gridTemplateColumns:"1fr 40px 40px 40px 36px 64px 40px",gap:6,fontSize:9,fontWeight:700,color:"#4A6080"}}>
                 <div>TEAM</div><div style={{textAlign:"center"}}>P</div><div style={{textAlign:"center"}}>W</div><div style={{textAlign:"center"}}>L</div><div style={{textAlign:"center",color:"#60A5FA"}}>NR</div><div style={{textAlign:"center"}}>NRR</div><div style={{textAlign:"center"}}>PTS</div>
