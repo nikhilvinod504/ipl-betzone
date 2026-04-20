@@ -2307,17 +2307,19 @@ export default function App() {
                                 <div style={{ fontSize:9, color:"#2A4060", marginTop:3 }}>{msg.deviceType}</div>
                               </div>
 
-                              {/* Action buttons: react + reply + delete */}
-                              <div style={{ display:"flex", flexDirection:"column", gap:4, flexShrink:0 }}>
+                              {/* Action buttons — always visible on mobile */}
+                              <div style={{ display:"flex", flexDirection:"column", gap:4, flexShrink:0, justifyContent:"center" }}>
                                 <button onClick={() => setReactionPicker(reactionPicker === msg.id ? null : msg.id)}
-                                  style={{ background:"transparent", border:"none", fontSize:13, cursor:"pointer", opacity:0.4, padding:"2px" }}
-                                  title="React">😊</button>
+                                  style={{ background:"#1A3050", border:"1px solid #2A4060", borderRadius:8, fontSize:14, cursor:"pointer", padding:"5px 7px", lineHeight:1 }}>
+                                  😊
+                                </button>
                                 <button onClick={() => { setReplyTo({ id: msg.id, sender: msg.sender, text: msg.text }); }}
-                                  style={{ background:"transparent", border:"none", fontSize:13, cursor:"pointer", opacity:0.4, padding:"2px" }}
-                                  title="Reply">↩</button>
+                                  style={{ background:"#1A3050", border:"1px solid #2A4060", borderRadius:8, fontSize:14, cursor:"pointer", padding:"5px 7px", lineHeight:1, color:"#7A90B0", fontWeight:700 }}>
+                                  ↩
+                                </button>
                                 {(isMe || adminMode) && (
                                   <button onClick={() => deleteMessage(msg.id)}
-                                    style={{ background:"transparent", border:"none", fontSize:11, cursor:"pointer", opacity:0.3, padding:"2px" }}>🗑</button>
+                                    style={{ background:"transparent", border:"none", fontSize:12, cursor:"pointer", opacity:0.3, padding:"4px", color:"#EF4444" }}>🗑</button>
                                 )}
                               </div>
                             </div>
