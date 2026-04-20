@@ -571,6 +571,8 @@ export default function App() {
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState("");
   const [chatSender, setChatSender] = useState(null); // auto-detected from device
+  const [replyTo, setReplyTo] = useState(null); // { id, sender, text } of message being replied to
+  const [reactionPicker, setReactionPicker] = useState(null); // msgId showing emoji picker
   const [lastSeenChat, setLastSeenChat] = useState(() => {
     // Persist last seen timestamp in localStorage per device
     try { return parseInt(localStorage.getItem("betzone_lastSeenChat") || "0"); } catch { return 0; }
@@ -2126,9 +2128,15 @@ export default function App() {
               timezone: info.timezone,
               likelyUser: info.likelyUser || "Unknown",
             };
+            // Attach reply context if replying
+            if (replyTo) {
+              msg.replyToId = replyTo.id;
+              msg.replyToSender = replyTo.sender;
+              msg.replyToText = replyTo.text.length > 60 ? replyTo.text.slice(0, 60) + "…" : replyTo.text;
+            }
             set(ref(db, `chat/${ts}`), msg);
             setChatInput("");
-            // Update last seen so your own message doesn't count as unread
+            setReplyTo(null);
             const now2 = Date.now();
             setLastSeenChat(now2);
             try { localStorage.setItem("betzone_lastSeenChat", now2.toString()); } catch {}
@@ -2136,6 +2144,20 @@ export default function App() {
 
           function deleteMessage(msgId) {
             set(ref(db, `chat/${msgId}`), null);
+          }
+
+          function addReaction(msgId, emoji) {
+            const sender = chatSender || "Unknown";
+            const key = `chat/${msgId}/reactions/${emoji}/${sender}`;
+            // Toggle: if already reacted remove it, else add it
+            const existing = chatMessages.find(m => m.id === msgId);
+            const alreadyReacted = existing?.reactions?.[emoji]?.[sender];
+            if (alreadyReacted) {
+              set(ref(db, key), null);
+            } else {
+              set(ref(db, key), true);
+            }
+            setReactionPicker(null);
           }
 
           function fmtChatTime(ts) {
@@ -2216,34 +2238,89 @@ export default function App() {
                         const senderMeta = PLAYER_META[msg.sender] || { emoji:"❓", color:"#7A90B0", light:"#7A90B018" };
                         const isMe = msg.sender === chatSender;
                         const mismatch = msg.likelyUser && msg.likelyUser !== "Unknown" && msg.likelyUser !== msg.sender;
+                        const reactions = msg.reactions || {};
+                        const showReactionPicker = reactionPicker === msg.id;
+
                         return (
-                          <div key={msg.id} style={{ display:"flex", flexDirection:isMe ? "row-reverse" : "row", alignItems:"flex-end", gap:8, marginBottom:10 }}>
-                            {/* Avatar */}
-                            <div style={{ width:30, height:30, borderRadius:"50%", background:senderMeta.light, border:`2px solid ${senderMeta.color}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, flexShrink:0 }}>
-                              {senderMeta.emoji}
-                            </div>
-                            {/* Bubble */}
-                            <div style={{ maxWidth:"72%", display:"flex", flexDirection:"column", alignItems:isMe ? "flex-end" : "flex-start" }}>
-                              {/* Sender name + time */}
-                              <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3 }}>
-                                {!isMe && <span style={{ fontSize:10, fontWeight:700, color:senderMeta.color }}>{msg.sender}</span>}
-                                <span style={{ fontSize:9, color:"#2A4060" }}>{fmtChatTime(msg.timestamp)}</span>
-                                {mismatch && <span style={{ fontSize:9, color:"#EF4444" }} title={`Device = ${msg.likelyUser}`}>⚠️</span>}
+                          <div key={msg.id} style={{ marginBottom:14, position:"relative" }}>
+                            {/* Reaction picker popup */}
+                            {showReactionPicker && (
+                              <div style={{ position:"absolute", [isMe ? "right" : "left"]:40, top:-44, zIndex:100, background:"#0D1828", border:"1px solid #1A3050", borderRadius:30, padding:"6px 10px", display:"flex", gap:6, boxShadow:"0 4px 20px #000a" }}>
+                                {["👍","❤️","😂","😮","😢","🔥"].map(emoji => (
+                                  <button key={emoji} onClick={() => addReaction(msg.id, emoji)}
+                                    style={{ background:"transparent", border:"none", fontSize:20, cursor:"pointer", padding:"2px", opacity: reactions[emoji]?.[chatSender] ? 1 : 0.6, transform: reactions[emoji]?.[chatSender] ? "scale(1.2)" : "scale(1)" }}>
+                                    {emoji}
+                                  </button>
+                                ))}
                               </div>
-                              {/* Message bubble */}
-                              <div style={{ background:isMe ? senderMeta.color + "22" : "#0D1828", border:`1px solid ${isMe ? senderMeta.color + "55" : "#1A3050"}`, borderRadius:isMe ? "14px 14px 4px 14px" : "14px 14px 14px 4px", padding:"9px 13px", fontSize:13, color:"#E2E8F8", lineHeight:1.5, wordBreak:"break-word" }}>
-                                {msg.text}
-                              </div>
-                              {/* Device info */}
-                              <div style={{ fontSize:9, color:"#2A4060", marginTop:3 }}>{msg.deviceType}</div>
-                            </div>
-                            {/* Delete (own messages or admin) */}
-                            {(isMe || adminMode) && (
-                              <button onClick={() => deleteMessage(msg.id)}
-                                style={{ background:"transparent", border:"none", color:"#2A4060", fontSize:12, cursor:"pointer", padding:"2px 4px", flexShrink:0 }}>
-                                🗑
-                              </button>
                             )}
+
+                            <div style={{ display:"flex", flexDirection:isMe ? "row-reverse" : "row", alignItems:"flex-end", gap:8 }}>
+                              {/* Avatar */}
+                              <div style={{ width:30, height:30, borderRadius:"50%", background:senderMeta.light, border:`2px solid ${senderMeta.color}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, flexShrink:0 }}>
+                                {senderMeta.emoji}
+                              </div>
+
+                              {/* Bubble + reply + reactions */}
+                              <div style={{ maxWidth:"72%", display:"flex", flexDirection:"column", alignItems:isMe ? "flex-end" : "flex-start" }}>
+                                {/* Sender + time */}
+                                <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3 }}>
+                                  {!isMe && <span style={{ fontSize:10, fontWeight:700, color:senderMeta.color }}>{msg.sender}</span>}
+                                  <span style={{ fontSize:9, color:"#2A4060" }}>{fmtChatTime(msg.timestamp)}</span>
+                                  {mismatch && <span style={{ fontSize:9, color:"#EF4444" }}>⚠️</span>}
+                                </div>
+
+                                {/* Reply quote block */}
+                                {msg.replyToId && (
+                                  <div style={{ background:"#0A1420", border:"1px solid #1A3050", borderLeft:`3px solid ${PLAYER_META[msg.replyToSender]?.color || "#4A6080"}`, borderRadius:8, padding:"5px 10px", marginBottom:4, maxWidth:"100%", opacity:0.8 }}>
+                                    <div style={{ fontSize:9, fontWeight:700, color:PLAYER_META[msg.replyToSender]?.color || "#4A6080", marginBottom:2 }}>
+                                      ↩ {msg.replyToSender}
+                                    </div>
+                                    <div style={{ fontSize:10, color:"#7A90B0", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                                      {msg.replyToText}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Message bubble */}
+                                <div style={{ background:isMe ? senderMeta.color + "22" : "#0D1828", border:`1px solid ${isMe ? senderMeta.color + "55" : "#1A3050"}`, borderRadius:isMe ? "14px 14px 4px 14px" : "14px 14px 14px 4px", padding:"9px 13px", fontSize:13, color:"#E2E8F8", lineHeight:1.5, wordBreak:"break-word" }}>
+                                  {msg.text}
+                                </div>
+
+                                {/* Reactions row */}
+                                {Object.keys(reactions).length > 0 && (
+                                  <div style={{ display:"flex", gap:4, marginTop:4, flexWrap:"wrap" }}>
+                                    {Object.entries(reactions).map(([emoji, reactors]) => {
+                                      const count = Object.keys(reactors).length;
+                                      const iReacted = reactors[chatSender];
+                                      return (
+                                        <button key={emoji} onClick={() => addReaction(msg.id, emoji)}
+                                          style={{ background:iReacted ? senderMeta.color + "22" : "#0A1420", border:`1px solid ${iReacted ? senderMeta.color + "66" : "#1A3050"}`, borderRadius:20, padding:"2px 8px", fontSize:12, cursor:"pointer", display:"flex", alignItems:"center", gap:3 }}>
+                                          {emoji}
+                                          {count > 1 && <span style={{ fontSize:9, color:"#7A90B0", fontWeight:700 }}>{count}</span>}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+
+                                <div style={{ fontSize:9, color:"#2A4060", marginTop:3 }}>{msg.deviceType}</div>
+                              </div>
+
+                              {/* Action buttons: react + reply + delete */}
+                              <div style={{ display:"flex", flexDirection:"column", gap:4, flexShrink:0 }}>
+                                <button onClick={() => setReactionPicker(reactionPicker === msg.id ? null : msg.id)}
+                                  style={{ background:"transparent", border:"none", fontSize:13, cursor:"pointer", opacity:0.4, padding:"2px" }}
+                                  title="React">😊</button>
+                                <button onClick={() => { setReplyTo({ id: msg.id, sender: msg.sender, text: msg.text }); }}
+                                  style={{ background:"transparent", border:"none", fontSize:13, cursor:"pointer", opacity:0.4, padding:"2px" }}
+                                  title="Reply">↩</button>
+                                {(isMe || adminMode) && (
+                                  <button onClick={() => deleteMessage(msg.id)}
+                                    style={{ background:"transparent", border:"none", fontSize:11, cursor:"pointer", opacity:0.3, padding:"2px" }}>🗑</button>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         );
                       })}
@@ -2252,14 +2329,31 @@ export default function App() {
                 )}
               </div>
 
+              {/* Reply preview bar */}
+              {replyTo && (
+                <div style={{ background:"#0A1420", border:"1px solid #1A3050", borderLeft:`3px solid ${PLAYER_META[replyTo.sender]?.color || "#4A6080"}`, borderRadius:"8px 8px 0 0", padding:"8px 12px", display:"flex", alignItems:"center", gap:8, marginBottom:-1 }}>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:10, fontWeight:700, color:PLAYER_META[replyTo.sender]?.color || "#4A6080", marginBottom:2 }}>
+                      ↩ Replying to {replyTo.sender}
+                    </div>
+                    <div style={{ fontSize:11, color:"#7A90B0", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                      {replyTo.text}
+                    </div>
+                  </div>
+                  <button onClick={() => setReplyTo(null)}
+                    style={{ background:"transparent", border:"none", color:"#4A6080", fontSize:16, cursor:"pointer", flexShrink:0, lineHeight:1 }}>✕</button>
+                </div>
+              )}
+
               {/* Input bar */}
-              <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}>
-                <div style={{ flex:1, background:"#0D1828", border:`1px solid ${meta ? meta.color + "44" : "#1A3050"}`, borderRadius:14, padding:"10px 14px", display:"flex", alignItems:"center" }}>
+              <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}
+                onClick={() => setReactionPicker(null)}>
+                <div style={{ flex:1, background:"#0D1828", border:`1px solid ${meta ? meta.color + "44" : "#1A3050"}`, borderRadius: replyTo ? "0 0 14px 14px" : 14, padding:"10px 14px", display:"flex", alignItems:"center" }}>
                   <textarea
                     value={chatInput}
                     onChange={e => setChatInput(e.target.value)}
                     onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }}}
-                    placeholder={chatSender ? `Say something, ${chatSender}... 🔥` : "Select your name above first"}
+                    placeholder={chatSender ? (replyTo ? `Reply to ${replyTo.sender}...` : `Say something, ${chatSender}... 🔥`) : "Select your name above first"}
                     disabled={!chatSender}
                     rows={1}
                     style={{ flex:1, background:"transparent", border:"none", outline:"none", color:"#E2E8F8", fontSize:13, resize:"none", fontFamily:"'DM Sans',sans-serif", lineHeight:1.5 }}
@@ -2699,4 +2793,3 @@ export default function App() {
     </div>
   );
 }
-
