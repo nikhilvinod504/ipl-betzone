@@ -574,7 +574,7 @@ export default function App() {
   const [replyTo, setReplyTo] = useState(null); // { id, sender, text } of message being replied to
   const [reactionPicker, setReactionPicker] = useState(null); // msgId showing emoji picker
   const [longPressMsg, setLongPressMsg] = useState(null); // msgId showing context menu
-  const longPressTimer = React.useRef(null);
+  const longPressTimer = useRef(null);
   const [lastSeenChat, setLastSeenChat] = useState(() => {
     // Persist last seen timestamp in localStorage per device
     try { return parseInt(localStorage.getItem("betzone_lastSeenChat") || "0"); } catch { return 0; }
