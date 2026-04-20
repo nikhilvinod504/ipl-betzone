@@ -573,6 +573,8 @@ export default function App() {
   const [chatSender, setChatSender] = useState(null); // auto-detected from device
   const [replyTo, setReplyTo] = useState(null); // { id, sender, text } of message being replied to
   const [reactionPicker, setReactionPicker] = useState(null); // msgId showing emoji picker
+  const [longPressMsg, setLongPressMsg] = useState(null); // msgId showing context menu
+  const longPressTimer = React.useRef(null);
   const [lastSeenChat, setLastSeenChat] = useState(() => {
     // Persist last seen timestamp in localStorage per device
     try { return parseInt(localStorage.getItem("betzone_lastSeenChat") || "0"); } catch { return 0; }
@@ -2218,7 +2220,7 @@ export default function App() {
               </div>
 
               {/* Messages */}
-              <div style={{ flex:1, overflowY:"auto", marginBottom:12 }}>
+              <div style={{ flex:1, overflowY:"auto", marginBottom:12 }} onClick={() => setLongPressMsg(null)}>
                 {chatMessages.length === 0 ? (
                   <div style={{ textAlign:"center", padding:40, color:"#2A4060" }}>
                     <div style={{ fontSize:40, marginBottom:10 }}>💬</div>
@@ -2239,19 +2241,43 @@ export default function App() {
                         const isMe = msg.sender === chatSender;
                         const mismatch = msg.likelyUser && msg.likelyUser !== "Unknown" && msg.likelyUser !== msg.sender;
                         const reactions = msg.reactions || {};
-                        const showReactionPicker = reactionPicker === msg.id;
+                        const showMenu = longPressMsg === msg.id;
+
+                        const startLongPress = () => {
+                          longPressTimer.current = setTimeout(() => setLongPressMsg(msg.id), 450);
+                        };
+                        const cancelLongPress = () => {
+                          clearTimeout(longPressTimer.current);
+                        };
 
                         return (
                           <div key={msg.id} style={{ marginBottom:14, position:"relative" }}>
-                            {/* Reaction picker popup */}
-                            {showReactionPicker && (
-                              <div style={{ position:"absolute", [isMe ? "right" : "left"]:40, top:-44, zIndex:100, background:"#0D1828", border:"1px solid #1A3050", borderRadius:30, padding:"6px 10px", display:"flex", gap:6, boxShadow:"0 4px 20px #000a" }}>
-                                {["👍","❤️","😂","😮","😢","🔥"].map(emoji => (
-                                  <button key={emoji} onClick={() => addReaction(msg.id, emoji)}
-                                    style={{ background:"transparent", border:"none", fontSize:20, cursor:"pointer", padding:"2px", opacity: reactions[emoji]?.[chatSender] ? 1 : 0.6, transform: reactions[emoji]?.[chatSender] ? "scale(1.2)" : "scale(1)" }}>
-                                    {emoji}
+
+                            {/* Context menu — shown on long press */}
+                            {showMenu && (
+                              <div style={{ position:"absolute", [isMe ? "right" : "left"]:0, top:-56, zIndex:200, background:"#0D1828", border:"1px solid #1A3050", borderRadius:16, padding:"8px 6px", boxShadow:"0 8px 30px #000c", display:"flex", flexDirection:"column", gap:2, minWidth:140 }}
+                                onClick={e => e.stopPropagation()}>
+                                {/* Emoji reactions row */}
+                                <div style={{ display:"flex", gap:4, padding:"4px 6px", borderBottom:"1px solid #1A3050", marginBottom:2 }}>
+                                  {["👍","❤️","😂","😮","😢","🔥"].map(emoji => (
+                                    <button key={emoji} onClick={() => { addReaction(msg.id, emoji); setLongPressMsg(null); }}
+                                      style={{ background: reactions[emoji]?.[chatSender] ? senderMeta.color + "33" : "transparent", border:"none", fontSize:20, cursor:"pointer", borderRadius:8, padding:"3px", transform: reactions[emoji]?.[chatSender] ? "scale(1.2)" : "scale(1)" }}>
+                                      {emoji}
+                                    </button>
+                                  ))}
+                                </div>
+                                {/* Reply option */}
+                                <button onClick={() => { setReplyTo({ id: msg.id, sender: msg.sender, text: msg.text }); setLongPressMsg(null); }}
+                                  style={{ background:"transparent", border:"none", color:"#E2E8F8", fontSize:13, cursor:"pointer", padding:"8px 12px", textAlign:"left", display:"flex", alignItems:"center", gap:8, borderRadius:8 }}>
+                                  <span style={{ fontSize:16 }}>↩</span> Reply
+                                </button>
+                                {/* Delete option — own messages or admin */}
+                                {(isMe || adminMode) && (
+                                  <button onClick={() => { deleteMessage(msg.id); setLongPressMsg(null); }}
+                                    style={{ background:"transparent", border:"none", color:"#EF4444", fontSize:13, cursor:"pointer", padding:"8px 12px", textAlign:"left", display:"flex", alignItems:"center", gap:8, borderRadius:8 }}>
+                                    <span style={{ fontSize:16 }}>🗑</span> Delete
                                   </button>
-                                ))}
+                                )}
                               </div>
                             )}
 
@@ -2261,8 +2287,8 @@ export default function App() {
                                 {senderMeta.emoji}
                               </div>
 
-                              {/* Bubble + reply + reactions */}
-                              <div style={{ maxWidth:"72%", display:"flex", flexDirection:"column", alignItems:isMe ? "flex-end" : "flex-start" }}>
+                              {/* Bubble column */}
+                              <div style={{ maxWidth:"75%", display:"flex", flexDirection:"column", alignItems:isMe ? "flex-end" : "flex-start" }}>
                                 {/* Sender + time */}
                                 <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3 }}>
                                   {!isMe && <span style={{ fontSize:10, fontWeight:700, color:senderMeta.color }}>{msg.sender}</span>}
@@ -2282,12 +2308,19 @@ export default function App() {
                                   </div>
                                 )}
 
-                                {/* Message bubble */}
-                                <div style={{ background:isMe ? senderMeta.color + "22" : "#0D1828", border:`1px solid ${isMe ? senderMeta.color + "55" : "#1A3050"}`, borderRadius:isMe ? "14px 14px 4px 14px" : "14px 14px 14px 4px", padding:"9px 13px", fontSize:13, color:"#E2E8F8", lineHeight:1.5, wordBreak:"break-word" }}>
+                                {/* Message bubble — long press triggers menu */}
+                                <div
+                                  onTouchStart={startLongPress}
+                                  onTouchEnd={cancelLongPress}
+                                  onTouchMove={cancelLongPress}
+                                  onMouseDown={startLongPress}
+                                  onMouseUp={cancelLongPress}
+                                  onMouseLeave={cancelLongPress}
+                                  style={{ background:isMe ? senderMeta.color + "22" : "#0D1828", border:`1px solid ${showMenu ? senderMeta.color : isMe ? senderMeta.color + "55" : "#1A3050"}`, borderRadius:isMe ? "14px 14px 4px 14px" : "14px 14px 14px 4px", padding:"9px 13px", fontSize:13, color:"#E2E8F8", lineHeight:1.5, wordBreak:"break-word", userSelect:"none", WebkitUserSelect:"none", cursor:"pointer", transition:"border .15s", boxShadow: showMenu ? `0 0 0 2px ${senderMeta.color}44` : "none" }}>
                                   {msg.text}
                                 </div>
 
-                                {/* Reactions row */}
+                                {/* Reaction pills */}
                                 {Object.keys(reactions).length > 0 && (
                                   <div style={{ display:"flex", gap:4, marginTop:4, flexWrap:"wrap" }}>
                                     {Object.entries(reactions).map(([emoji, reactors]) => {
@@ -2305,22 +2338,6 @@ export default function App() {
                                 )}
 
                                 <div style={{ fontSize:9, color:"#2A4060", marginTop:3 }}>{msg.deviceType}</div>
-                              </div>
-
-                              {/* Action buttons — always visible on mobile */}
-                              <div style={{ display:"flex", flexDirection:"column", gap:4, flexShrink:0, justifyContent:"center" }}>
-                                <button onClick={() => setReactionPicker(reactionPicker === msg.id ? null : msg.id)}
-                                  style={{ background:"#1A3050", border:"1px solid #2A4060", borderRadius:8, fontSize:14, cursor:"pointer", padding:"5px 7px", lineHeight:1 }}>
-                                  😊
-                                </button>
-                                <button onClick={() => { setReplyTo({ id: msg.id, sender: msg.sender, text: msg.text }); }}
-                                  style={{ background:"#1A3050", border:"1px solid #2A4060", borderRadius:8, fontSize:14, cursor:"pointer", padding:"5px 7px", lineHeight:1, color:"#7A90B0", fontWeight:700 }}>
-                                  ↩
-                                </button>
-                                {(isMe || adminMode) && (
-                                  <button onClick={() => deleteMessage(msg.id)}
-                                    style={{ background:"transparent", border:"none", fontSize:12, cursor:"pointer", opacity:0.3, padding:"4px", color:"#EF4444" }}>🗑</button>
-                                )}
                               </div>
                             </div>
                           </div>
@@ -2349,7 +2366,7 @@ export default function App() {
 
               {/* Input bar */}
               <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}
-                onClick={() => setReactionPicker(null)}>
+                onClick={() => setLongPressMsg(null)}>
                 <div style={{ flex:1, background:"#0D1828", border:`1px solid ${meta ? meta.color + "44" : "#1A3050"}`, borderRadius: replyTo ? "0 0 14px 14px" : 14, padding:"10px 14px", display:"flex", alignItems:"center" }}>
                   <textarea
                     value={chatInput}
