@@ -2316,7 +2316,8 @@ export default function App() {
                                   onMouseDown={startLongPress}
                                   onMouseUp={cancelLongPress}
                                   onMouseLeave={cancelLongPress}
-                                  style={{ background:isMe ? senderMeta.color + "22" : "#0D1828", border:`1px solid ${showMenu ? senderMeta.color : isMe ? senderMeta.color + "55" : "#1A3050"}`, borderRadius:isMe ? "14px 14px 4px 14px" : "14px 14px 14px 4px", padding:"9px 13px", fontSize:13, color:"#E2E8F8", lineHeight:1.5, wordBreak:"break-word", userSelect:"none", WebkitUserSelect:"none", cursor:"pointer", transition:"border .15s", boxShadow: showMenu ? `0 0 0 2px ${senderMeta.color}44` : "none" }}>
+                                  onContextMenu={e => e.preventDefault()}
+                                  style={{ background:isMe ? senderMeta.color + "22" : "#0D1828", border:`1px solid ${showMenu ? senderMeta.color : isMe ? senderMeta.color + "55" : "#1A3050"}`, borderRadius:isMe ? "14px 14px 4px 14px" : "14px 14px 14px 4px", padding:"9px 13px", fontSize:13, color:"#E2E8F8", lineHeight:1.5, wordBreak:"break-word", userSelect:"none", WebkitUserSelect:"none", WebkitTouchCallout:"none", cursor:"pointer", transition:"border .15s", boxShadow: showMenu ? `0 0 0 2px ${senderMeta.color}44` : "none" }}>
                                   {msg.text}
                                 </div>
 
