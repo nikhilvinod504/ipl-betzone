@@ -1695,7 +1695,10 @@ export default function App() {
         {/* ── HISTORY ── */}
         {!loading && tab === "history" && (
           <div>
-            <div style={{ fontSize: 11, color: "#4A6080", marginBottom: 14, fontWeight: 700, letterSpacing: 0.5 }}>COMPLETED MATCHES</div>
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, color: "#4A6080", fontWeight: 700, letterSpacing: 0.5 }}>COMPLETED MATCHES</div>
+              <div style={{ fontSize: 10, color: "#2A4060", marginTop: 4 }}>Newest first</div>
+            </div>
             {completedMatches.length === 0 && (
               <div style={{ textAlign: "center", padding: 50, color: "#4A6080" }}>
                 <div style={{ fontSize: 40, marginBottom: 12 }}>📜</div>
@@ -1703,7 +1706,9 @@ export default function App() {
                 <div style={{ fontSize: 12, marginTop: 6 }}>Results appear here automatically once matches finish.</div>
               </div>
             )}
-            {completedMatches.map(match => {
+            {[...completedMatches]
+              .sort((a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime())
+              .map(match => {
               const winner = getEffectiveWinner(match);
               const tossWinner = getEffectiveTossWinner(match);
               const status = getEffectiveStatus(match);
