@@ -583,6 +583,8 @@ export default function App() {
   const [customAvatars, setCustomAvatars] = useState({}); // avatar overrides from Firebase
   const [avatarPicker, setAvatarPicker] = useState(null); // player name whose avatar is being edited
   const [toast, setToast] = useState(null);
+  const [betAlerts, setBetAlerts] = useState([]); // [{player, count, isMe}]
+  const [betAlertDismissed, setBetAlertDismissed] = useState(false);
 
   // Firebase state
   const [bets, setBets] = useState({});
@@ -658,6 +660,24 @@ export default function App() {
     const info = getPlatformInfo();
     if (info.likelyUser) setChatSender(info.likelyUser);
   }, []);
+
+  // Check for missing bets once matches + bets are loaded
+  useEffect(() => {
+    if (loading || matches.length === 0) return;
+    const info = getPlatformInfo();
+    const me = info.likelyUser || null;
+    // Only check unlocked upcoming matches (bets still open)
+    const bettable = matches.filter(m => getEffectiveStatus(m) === "upcoming");
+    if (bettable.length === 0) return;
+    const alerts = [];
+    PLAYERS.forEach(player => {
+      const missing = bettable.filter(m => !bets[`${m.id}__${player}`]).length;
+      if (missing >= 3) {
+        alerts.push({ player, missing, isMe: player === me });
+      }
+    });
+    if (alerts.length > 0) setBetAlerts(alerts);
+  }, [loading, matches, bets]);
 
   // ── Auto-lock: check every 5 mins if any match is within 30 mins ──
   useEffect(() => {
@@ -2656,6 +2676,86 @@ export default function App() {
           </div>
         )}
       </div>
+      {/* ── BET ALERT POPUP ── */}
+      {betAlerts.length > 0 && !betAlertDismissed && (() => {
+        const meAlert = betAlerts.find(a => a.isMe);
+        const othersAlert = betAlerts.filter(a => !a.isMe);
+        return (
+          <div style={{ position:"fixed", inset:0, background:"#000000CC", zIndex:9997, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+            <div style={{ background:"#0D1828", border:"1px solid #FFD70044", borderRadius:20, padding:24, maxWidth:320, width:"100%", boxShadow:"0 20px 60px #000" }}>
+              {/* Icon */}
+              <div style={{ textAlign:"center", fontSize:44, marginBottom:12 }}>⏰</div>
+
+              {/* My own missing bets */}
+              {meAlert && (
+                <div style={{ marginBottom:16 }}>
+                  <div style={{ fontFamily:"'Syne',sans-serif", fontSize:16, fontWeight:800, color:"#FFD700", textAlign:"center", marginBottom:8 }}>
+                    Hey {meAlert.player}!
+                  </div>
+                  <div style={{ background:"#0A1420", borderRadius:12, padding:"12px 16px", textAlign:"center", marginBottom:12 }}>
+                    <div style={{ fontSize:30, marginBottom:6 }}>{PLAYER_META[meAlert.player].emoji}</div>
+                    <div style={{ fontSize:13, color:"#E2E8F8", lineHeight:1.6 }}>
+                      You haven't placed bets for<br/>
+                      <span style={{ color:"#FF6B2B", fontWeight:800, fontSize:16 }}>{meAlert.missing} upcoming matches</span>
+                    </div>
+                    <div style={{ fontSize:11, color:"#4A6080", marginTop:6 }}>Don't miss out on points! 🏆</div>
+                  </div>
+                  <button onClick={() => { setTab("bets"); setBetAlertDismissed(true); }}
+                    style={{ width:"100%", padding:"12px", borderRadius:12, border:"none", background:PLAYER_META[meAlert.player].color, color:"#fff", fontWeight:800, fontSize:14, cursor:"pointer", marginBottom:8 }}>
+                    🎯 Go to Bets
+                  </button>
+                </div>
+              )}
+
+              {/* Others missing bets */}
+              {othersAlert.length > 0 && (
+                <div style={{ marginBottom:16 }}>
+                  {!meAlert && (
+                    <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, color:"#FFD700", textAlign:"center", marginBottom:10 }}>
+                      ⚠️ Missing Bets Alert
+                    </div>
+                  )}
+                  {othersAlert.map(a => (
+                    <div key={a.player} style={{ background:"#0A1420", borderRadius:12, padding:"10px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:12 }}>
+                      <div style={{ width:38, height:38, borderRadius:"50%", background:PLAYER_META[a.player].light, border:`2px solid ${PLAYER_META[a.player].color}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>
+                        {PLAYER_META[a.player].emoji}
+                      </div>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontSize:13, fontWeight:800, color:PLAYER_META[a.player].color }}>{a.player}</div>
+                        <div style={{ fontSize:11, color:"#7A90B0" }}>hasn't bet on <span style={{ color:"#FF6B2B", fontWeight:700 }}>{a.missing} matches</span></div>
+                      </div>
+                    </div>
+                  ))}
+                  {/* Send reminder in chat */}
+                  <button onClick={() => {
+                    const names = othersAlert.map(a => a.player).join(" & ");
+                    const count = Math.max(...othersAlert.map(a => a.missing));
+                    const ts = Date.now();
+                    const info = getPlatformInfo();
+                    const sender = info.likelyUser || "App";
+                    set(ref(db, `chat/${ts}`), {
+                      id: ts, sender: "🤖 BetZone", text: `⏰ Reminder: ${names} ${othersAlert.length > 1 ? "haven't" : "hasn't"} bet on ${count}+ upcoming matches. Get your picks in! 🏏`,
+                      timestamp: ts, deviceType: "🤖 Auto", timezone: "auto", likelyUser: "Bot",
+                    });
+                    setTab("chat");
+                    setBetAlertDismissed(true);
+                  }}
+                    style={{ width:"100%", padding:"11px", borderRadius:12, border:"1px solid #FF6B2B44", background:"#FF6B2B18", color:"#FF6B2B", fontWeight:700, fontSize:13, cursor:"pointer", marginBottom:8 }}>
+                    💬 Send Reminder in Chat
+                  </button>
+                </div>
+              )}
+
+              {/* Dismiss */}
+              <button onClick={() => setBetAlertDismissed(true)}
+                style={{ width:"100%", padding:"10px", borderRadius:12, border:"1px solid #1A3050", background:"transparent", color:"#4A6080", fontSize:13, cursor:"pointer" }}>
+                Dismiss
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ── AVATAR PICKER MODAL ── */}
       {avatarPicker && (() => {
         const p = avatarPicker;
