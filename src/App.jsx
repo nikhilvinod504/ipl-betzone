@@ -925,6 +925,48 @@ export default function App() {
   const upcomingMatches = matches.filter(m => getEffectiveStatus(m) === "upcoming");
   const liveMatches = matches.filter(m => getEffectiveStatus(m) === "live");
   const completedMatches = matches.filter(m => getEffectiveStatus(m) === "completed" || getEffectiveStatus(m) === "abandoned");
+  const nextFiveUpcoming = [...upcomingMatches]
+    .sort((a, b) => new Date(a.rawDate).getTime() - new Date(b.rawDate).getTime())
+    .slice(0, 5);
+  const missingUpcomingBets = nextFiveUpcoming
+    .map(match => {
+      const key = `${match.id}__${selectedPlayer}`;
+      const hasWinnerPick = !!bets[key];
+      const hasTossPick = !!tossGuesses[key];
+      return {
+        match,
+        hasWinnerPick,
+        hasTossPick,
+        missingWinner: !hasWinnerPick,
+        missingToss: !hasTossPick,
+      };
+    })
+    .filter(x => x.missingWinner || x.missingToss);
+  const shouldShowBetReminder = nextFiveUpcoming.length > 0 && missingUpcomingBets.length > 0;
+
+  async function sendBetReminderToChat() {
+    const info = getPlatformInfo();
+    const ts = Date.now();
+    const preview = missingUpcomingBets
+      .slice(0, 3)
+      .map(x => `${x.match.home} vs ${x.match.away}`)
+      .join(", ");
+    const moreCount = Math.max(0, missingUpcomingBets.length - 3);
+    const moreText = moreCount > 0 ? ` +${moreCount} more` : "";
+
+    const msg = {
+      id: ts,
+      sender: selectedPlayer,
+      text: `⏰ ${selectedPlayer}: I still need to finish bets for ${missingUpcomingBets.length}/${nextFiveUpcoming.length} upcoming games (${preview}${moreText}).`,
+      timestamp: ts,
+      deviceType: info.deviceType,
+      timezone: info.timezone,
+      likelyUser: info.likelyUser || selectedPlayer,
+    };
+    await set(ref(db, `chat/${ts}`), msg);
+    notify("⏰ Reminder posted in chat.", "info");
+    setTab("chat");
+  }
 
   // ── Admin tap ─────────────────────────────────────────────────
   function handleSecretTap() {
@@ -1235,6 +1277,43 @@ export default function App() {
 
       {/* Content */}
       <div style={{ maxWidth: 640, margin: "0 auto", padding: "16px 14px 90px" }}>
+        {!loading && shouldShowBetReminder && (
+          <div style={{ ...S.card("#EF444433"), borderLeft: "3px solid #EF4444", marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
+              <div>
+                <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 12, fontWeight: 800, color: "#FCA5A5" }}>
+                  ⚠️ Bet Reminder for {PLAYER_META[selectedPlayer]?.emoji} {selectedPlayer}
+                </div>
+                <div style={{ fontSize: 11, color: "#7A90B0", marginTop: 2 }}>
+                  Missing bets in {missingUpcomingBets.length} of next {nextFiveUpcoming.length} upcoming matches.
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+              {missingUpcomingBets.map(({ match, missingWinner, missingToss }) => (
+                <span key={match.id} style={{ fontSize: 10, padding: "4px 8px", borderRadius: 20, background: "#0A1420", color: "#E2E8F8", border: "1px solid #1A3050" }}>
+                  {match.home} vs {match.away} · {missingWinner ? "🏆" : ""}{missingToss ? "🪙" : ""}
+                </span>
+              ))}
+            </div>
+
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                onClick={() => setTab("bets")}
+                style={{ ...S.btn("#FF6B2B22", "#FF6B2B"), border: "1px solid #FF6B2B55", flex: 1, fontSize: 11 }}
+              >
+                🎯 Go Place Bets
+              </button>
+              <button
+                onClick={sendBetReminderToChat}
+                style={{ ...S.btn("#1E3A5F", "#93C5FD"), border: "1px solid #60A5FA55", flex: 1, fontSize: 11 }}
+              >
+                💬 Post Reminder in Chat
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* ── LOADING ── */}
         {loading && (
