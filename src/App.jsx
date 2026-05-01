@@ -1462,7 +1462,7 @@ export default function App() {
               </select>
             </div>
           </div>
-          <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
+          <div style={{ display: "flex", gap: 8, marginTop: 30 }}>
             {PLAYERS.map(p => (
               <div key={p} style={{ textAlign: "center", cursor: "pointer" }}
                 onClick={() => setAvatarPicker(p)}>
