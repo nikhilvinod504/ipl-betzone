@@ -390,7 +390,7 @@ const THEME_PACKS = {
     accent: "#FF6B2B",
     muted: "#4A6080",
   },
-  csk: { name: "CSK Theme", appBg: "#091325", text: "#F6FAFF", headerBg: "linear-gradient(135deg, #2A2B05 0%, #1A2240 60%, #0A152A 100%)", tabBarBg: "#111726", cardBg: "#0F1D34", border: "#2A3A58", accent: "#F9CD05", muted: "#7E90AF" },
+  csk: { name: "CSK Theme", appBg: "#120F03", text: "#FFFBEA", headerBg: "linear-gradient(135deg, #FFE04D 0%, #F9CD05 48%, #D4A017 100%)", tabBarBg: "#2B2408", cardBg: "#33290A", border: "#7A6110", accent: "#FFD700", muted: "#E8CF73" },
   mi: { name: "MI Theme", appBg: "#071326", text: "#E8F4FF", headerBg: "linear-gradient(135deg, #002B5B 0%, #005DA0 55%, #0A1D38 100%)", tabBarBg: "#081A31", cardBg: "#0C203C", border: "#20446B", accent: "#4FC3F7", muted: "#7E9CC0" },
   rcb: { name: "RCB Theme", appBg: "#120A10", text: "#FCEEF2", headerBg: "linear-gradient(135deg, #3A0A16 0%, #C8102E 55%, #1B0F14 100%)", tabBarBg: "#180E15", cardBg: "#22111A", border: "#4A2030", accent: "#FFD700", muted: "#A88391" },
   kkr: { name: "KKR Theme", appBg: "#0E0A1A", text: "#F1EAFF", headerBg: "linear-gradient(135deg, #2A1448 0%, #3A225D 55%, #120B22 100%)", tabBarBg: "#151028", cardBg: "#1A1330", border: "#3A2A58", accent: "#F4C430", muted: "#9889B8" },
