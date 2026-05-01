@@ -583,8 +583,6 @@ export default function App() {
   const [customAvatars, setCustomAvatars] = useState({}); // avatar overrides from Firebase
   const [avatarPicker, setAvatarPicker] = useState(null); // player name whose avatar is being edited
   const [toast, setToast] = useState(null);
-  const [betAlerts, setBetAlerts] = useState([]); // [{player, count, isMe}]
-  const [betAlertDismissed, setBetAlertDismissed] = useState(false);
 
   // Firebase state
   const [bets, setBets] = useState({});
@@ -660,24 +658,6 @@ export default function App() {
     const info = getPlatformInfo();
     if (info.likelyUser) setChatSender(info.likelyUser);
   }, []);
-
-  // Check for missing bets once matches + bets are loaded
-  useEffect(() => {
-    if (loading || matches.length === 0) return;
-    const info = getPlatformInfo();
-    const me = info.likelyUser || null;
-    // Only check unlocked upcoming matches (bets still open)
-    const bettable = matches.filter(m => getEffectiveStatus(m) === "upcoming");
-    if (bettable.length === 0) return;
-    const alerts = [];
-    PLAYERS.forEach(player => {
-      const missing = bettable.filter(m => !bets[`${m.id}__${player}`]).length;
-      if (missing >= 3) {
-        alerts.push({ player, missing, isMe: player === me });
-      }
-    });
-    if (alerts.length > 0) setBetAlerts(alerts);
-  }, [loading, matches, bets]);
 
   // ── Auto-lock: check every 5 mins if any match is within 30 mins ──
   useEffect(() => {
@@ -1565,60 +1545,152 @@ export default function App() {
         )}
 
         {/* ── SCHEDULE ── */}
-        {!loading && tab === "schedule" && (
-          <div>
-            <div style={{ fontSize: 11, color: "#4A6080", marginBottom: 14, fontWeight: 700, letterSpacing: 0.5 }}>IPL 2026 — ALL FIXTURES</div>
-            {matches.map((match, idx) => {
-              const status = getEffectiveStatus(match);
-              const winner = getEffectiveWinner(match);
-              return (
-                <div key={match.id} style={{ ...S.card(status === "live" ? "#EF444433" : "#1A3050"), opacity: status === "completed" ? 0.75 : 1 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                    <span style={{ fontSize: 10, color: "#4A6080" }}>Match {idx + 1} · {fmtMatchDate(match.rawDate)}</span>
-                    <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: status === "live" ? "#EF444422" : status === "completed" ? "#14532D22" : "#FF6B2B22", color: status === "live" ? "#EF4444" : status === "completed" ? "#22C55E" : "#FF6B2B" }}>
-                      {status === "live" ? "🔴 LIVE" : status === "completed" ? "✅ Done" : status === "abandoned" ? "🌧️ Abandoned" : "🕐 Soon"}
-                    </span>
+        {!loading && tab === "schedule" && (() => {
+          const now = Date.now();
+          const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
+          const recentCutoff = now - threeDaysMs;
+          const upcomingCutoff = now + threeDaysMs;
+
+          const fixtureNoById = Object.fromEntries(matches.map((m, i) => [m.id, i + 1]));
+          const byDateAsc = (a, b) => new Date(a.rawDate).getTime() - new Date(b.rawDate).getTime();
+          const byDateDesc = (a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime();
+
+          const inProgressMatches = matches
+            .filter(m => getEffectiveStatus(m) === "live")
+            .sort(byDateAsc);
+
+          const latestResults = matches
+            .filter(m => {
+              const status = getEffectiveStatus(m);
+              const ts = new Date(m.rawDate).getTime();
+              return (status === "completed" || status === "abandoned") && ts >= recentCutoff;
+            })
+            .sort(byDateDesc);
+
+          const nextThreeDays = matches
+            .filter(m => {
+              const status = getEffectiveStatus(m);
+              const ts = new Date(m.rawDate).getTime();
+              return status === "upcoming" && ts <= upcomingCutoff;
+            })
+            .sort(byDateAsc);
+
+          const futureGames = matches
+            .filter(m => {
+              const status = getEffectiveStatus(m);
+              const ts = new Date(m.rawDate).getTime();
+              return status === "upcoming" && ts > upcomingCutoff;
+            })
+            .sort(byDateAsc);
+
+          const olderResults = matches
+            .filter(m => {
+              const status = getEffectiveStatus(m);
+              const ts = new Date(m.rawDate).getTime();
+              return (status === "completed" || status === "abandoned") && ts < recentCutoff;
+            })
+            .sort(byDateDesc);
+
+          function renderScheduleCard(match) {
+            const status = getEffectiveStatus(match);
+            const winner = getEffectiveWinner(match);
+            const statusStyle = {
+              live: { bg: "#EF444422", color: "#EF4444", label: "🔴 LIVE" },
+              completed: { bg: "#14532D22", color: "#22C55E", label: "✅ Done" },
+              abandoned: { bg: "#60A5FA22", color: "#60A5FA", label: "🌧️ Abandoned" },
+              upcoming: { bg: "#FF6B2B22", color: "#FF6B2B", label: "🕐 Soon" },
+            }[status] || { bg: "#1A3050", color: "#7A90B0", label: status };
+
+            return (
+              <div key={match.id} style={{ ...S.card(status === "live" ? "#EF444433" : "#1A3050"), opacity: (status === "completed" || status === "abandoned") ? 0.75 : 1 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                  <span style={{ fontSize: 10, color: "#4A6080" }}>Match {fixtureNoById[match.id]} · {fmtMatchDate(match.rawDate)}</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: statusStyle.bg, color: statusStyle.color }}>
+                    {statusStyle.label}
+                  </span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                    <TeamBadge short={match.home} size={36} />
+                    <div style={{ fontSize: 9, fontWeight: 700, color: IPL_TEAMS[match.home]?.color || "#fff" }}>{match.home}</div>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
-                      <TeamBadge short={match.home} size={36} />
-                      <div style={{ fontSize: 9, fontWeight: 700, color: IPL_TEAMS[match.home]?.color || "#fff" }}>{match.home}</div>
+                  <div style={{ flex: 1, textAlign: "center" }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: winner ? "#FFD700" : "#E2E8F8" }}>
+                      {status === "completed" ? `${winner} won` : status === "abandoned" ? "🌧️ Abandoned" : status === "live" ? "In Progress 🔴" : fmtMatchTime(match.rawDate)}
                     </div>
-                    <div style={{ flex: 1, textAlign: "center" }}>
-                      <div style={{ fontSize: 12, fontWeight: 800, color: winner ? "#FFD700" : "#E2E8F8" }}>
-                        {status === "completed" ? `${winner} won` : status === "abandoned" ? "🌧️ Abandoned" : status === "live" ? "In Progress 🔴" : fmtMatchTime(match.rawDate)}
-                      </div>
-                      <div style={{ fontSize: 9, color: "#2A4060", marginTop: 2 }}>🏟 {match.venue.split(",")[0]}</div>
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
-                      <TeamBadge short={match.away} size={36} />
-                      <div style={{ fontSize: 9, fontWeight: 700, color: IPL_TEAMS[match.away]?.color || "#fff" }}>{match.away}</div>
-                    </div>
+                    <div style={{ fontSize: 9, color: "#2A4060", marginTop: 2 }}>🏟 {match.venue.split(",")[0]}</div>
                   </div>
-                  {/* picks — only show when live or completed */}
-                  {(status === "live" || status === "completed") && (
-                    <div style={{ marginTop: 10, display: "flex", gap: 6, flexWrap: "wrap" }}>
-                      {PLAYERS.map(p => {
-                        const pb = bets[`${match.id}__${p}`];
-                        const correct = winner && pb === winner;
-                        return (
-                          <span key={p} style={{ fontSize: 10, padding: "3px 8px", borderRadius: 20, background: correct ? "#14532D33" : "#0A1420", color: correct ? "#22C55E" : "#4A6080", border: `1px solid ${correct ? "#22C55E33" : "#1A3050"}` }}>
-                            {PLAYER_META[p].emoji} {pb || "—"}{correct ? " ✅" : ""}
-                          </span>
-                        );
-                      })}
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                    <TeamBadge short={match.away} size={36} />
+                    <div style={{ fontSize: 9, fontWeight: 700, color: IPL_TEAMS[match.away]?.color || "#fff" }}>{match.away}</div>
+                  </div>
+                </div>
+                {(status === "live" || status === "completed") && (
+                  <div style={{ marginTop: 10, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {PLAYERS.map(p => {
+                      const pb = bets[`${match.id}__${p}`];
+                      const correct = winner && pb === winner;
+                      return (
+                        <span key={p} style={{ fontSize: 10, padding: "3px 8px", borderRadius: 20, background: correct ? "#14532D33" : "#0A1420", color: correct ? "#22C55E" : "#4A6080", border: `1px solid ${correct ? "#22C55E33" : "#1A3050"}` }}>
+                          {PLAYER_META[p].emoji} {pb || "—"}{correct ? " ✅" : ""}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+                {status === "upcoming" && (
+                  <div style={{ marginTop: 10, fontSize: 10, color: "#2A4060", fontStyle: "italic" }}>
+                    🔒 Picks hidden until match is live
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          function renderSection(title, list, openByDefault = false) {
+            return (
+              <details open={openByDefault} style={{ marginBottom: 12 }}>
+                <summary style={{ cursor: "pointer", listStyle: "none", background: "#0A1420", border: "1px solid #1A3050", borderRadius: 12, padding: "10px 12px", fontFamily: "'Syne',sans-serif", fontSize: 12, color: "#E2E8F8", fontWeight: 800, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span>{title}</span>
+                  <span style={{ fontSize: 10, color: "#4A6080" }}>{list.length}</span>
+                </summary>
+                <div style={{ marginTop: 10 }}>
+                  {list.length === 0 ? (
+                    <div style={{ ...S.card(), marginTop: 0, textAlign: "center", color: "#4A6080", fontSize: 11 }}>
+                      No matches in this section.
                     </div>
-                  )}
-                  {status === "upcoming" && (
-                    <div style={{ marginTop: 10, fontSize: 10, color: "#2A4060", fontStyle: "italic" }}>
-                      🔒 Picks hidden until match is live
-                    </div>
+                  ) : (
+                    list.map(renderScheduleCard)
                   )}
                 </div>
-              );
-            })}
-          </div>
-        )}
+              </details>
+            );
+          }
+
+          return (
+            <div>
+              <div style={{ fontSize: 11, color: "#4A6080", marginBottom: 14, fontWeight: 700, letterSpacing: 0.5 }}>IPL 2026 — ALL FIXTURES (GROUPED)</div>
+
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 12, color: "#EF4444", fontWeight: 800, marginBottom: 8 }}>
+                  🔴 In Progress
+                </div>
+                {inProgressMatches.length === 0 ? (
+                  <div style={{ ...S.card(), marginTop: 0, textAlign: "center", color: "#4A6080", fontSize: 11 }}>
+                    No live matches right now.
+                  </div>
+                ) : (
+                  inProgressMatches.map(renderScheduleCard)
+                )}
+              </div>
+
+              {renderSection("📊 Latest Results", latestResults, true)}
+              {renderSection("📅 Next 3 Days", nextThreeDays, true)}
+              {renderSection("🔮 Future Games", futureGames, false)}
+              {renderSection("✅ Older Results", olderResults, false)}
+            </div>
+          );
+        })()}
 
         {/* ── HISTORY ── */}
         {!loading && tab === "history" && (
@@ -2676,86 +2748,6 @@ export default function App() {
           </div>
         )}
       </div>
-      {/* ── BET ALERT POPUP ── */}
-      {betAlerts.length > 0 && !betAlertDismissed && (() => {
-        const meAlert = betAlerts.find(a => a.isMe);
-        const othersAlert = betAlerts.filter(a => !a.isMe);
-        return (
-          <div style={{ position:"fixed", inset:0, background:"#000000CC", zIndex:9997, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
-            <div style={{ background:"#0D1828", border:"1px solid #FFD70044", borderRadius:20, padding:24, maxWidth:320, width:"100%", boxShadow:"0 20px 60px #000" }}>
-              {/* Icon */}
-              <div style={{ textAlign:"center", fontSize:44, marginBottom:12 }}>⏰</div>
-
-              {/* My own missing bets */}
-              {meAlert && (
-                <div style={{ marginBottom:16 }}>
-                  <div style={{ fontFamily:"'Syne',sans-serif", fontSize:16, fontWeight:800, color:"#FFD700", textAlign:"center", marginBottom:8 }}>
-                    Hey {meAlert.player}!
-                  </div>
-                  <div style={{ background:"#0A1420", borderRadius:12, padding:"12px 16px", textAlign:"center", marginBottom:12 }}>
-                    <div style={{ fontSize:30, marginBottom:6 }}>{PLAYER_META[meAlert.player].emoji}</div>
-                    <div style={{ fontSize:13, color:"#E2E8F8", lineHeight:1.6 }}>
-                      You haven't placed bets for<br/>
-                      <span style={{ color:"#FF6B2B", fontWeight:800, fontSize:16 }}>{meAlert.missing} upcoming matches</span>
-                    </div>
-                    <div style={{ fontSize:11, color:"#4A6080", marginTop:6 }}>Don't miss out on points! 🏆</div>
-                  </div>
-                  <button onClick={() => { setTab("bets"); setBetAlertDismissed(true); }}
-                    style={{ width:"100%", padding:"12px", borderRadius:12, border:"none", background:PLAYER_META[meAlert.player].color, color:"#fff", fontWeight:800, fontSize:14, cursor:"pointer", marginBottom:8 }}>
-                    🎯 Go to Bets
-                  </button>
-                </div>
-              )}
-
-              {/* Others missing bets */}
-              {othersAlert.length > 0 && (
-                <div style={{ marginBottom:16 }}>
-                  {!meAlert && (
-                    <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, color:"#FFD700", textAlign:"center", marginBottom:10 }}>
-                      ⚠️ Missing Bets Alert
-                    </div>
-                  )}
-                  {othersAlert.map(a => (
-                    <div key={a.player} style={{ background:"#0A1420", borderRadius:12, padding:"10px 14px", marginBottom:8, display:"flex", alignItems:"center", gap:12 }}>
-                      <div style={{ width:38, height:38, borderRadius:"50%", background:PLAYER_META[a.player].light, border:`2px solid ${PLAYER_META[a.player].color}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>
-                        {PLAYER_META[a.player].emoji}
-                      </div>
-                      <div style={{ flex:1 }}>
-                        <div style={{ fontSize:13, fontWeight:800, color:PLAYER_META[a.player].color }}>{a.player}</div>
-                        <div style={{ fontSize:11, color:"#7A90B0" }}>hasn't bet on <span style={{ color:"#FF6B2B", fontWeight:700 }}>{a.missing} matches</span></div>
-                      </div>
-                    </div>
-                  ))}
-                  {/* Send reminder in chat */}
-                  <button onClick={() => {
-                    const names = othersAlert.map(a => a.player).join(" & ");
-                    const count = Math.max(...othersAlert.map(a => a.missing));
-                    const ts = Date.now();
-                    const info = getPlatformInfo();
-                    const sender = info.likelyUser || "App";
-                    set(ref(db, `chat/${ts}`), {
-                      id: ts, sender: "🤖 BetZone", text: `⏰ Reminder: ${names} ${othersAlert.length > 1 ? "haven't" : "hasn't"} bet on ${count}+ upcoming matches. Get your picks in! 🏏`,
-                      timestamp: ts, deviceType: "🤖 Auto", timezone: "auto", likelyUser: "Bot",
-                    });
-                    setTab("chat");
-                    setBetAlertDismissed(true);
-                  }}
-                    style={{ width:"100%", padding:"11px", borderRadius:12, border:"1px solid #FF6B2B44", background:"#FF6B2B18", color:"#FF6B2B", fontWeight:700, fontSize:13, cursor:"pointer", marginBottom:8 }}>
-                    💬 Send Reminder in Chat
-                  </button>
-                </div>
-              )}
-
-              {/* Dismiss */}
-              <button onClick={() => setBetAlertDismissed(true)}
-                style={{ width:"100%", padding:"10px", borderRadius:12, border:"1px solid #1A3050", background:"transparent", color:"#4A6080", fontSize:13, cursor:"pointer" }}>
-                Dismiss
-              </button>
-            </div>
-          </div>
-        );
-      })()}
-
       {/* ── AVATAR PICKER MODAL ── */}
       {avatarPicker && (() => {
         const p = avatarPicker;
