@@ -378,21 +378,45 @@ const IPL_TEAMS = {
 const IPL_SEARCH_TERM = "Indian Premier League";
 
 // ─── Styles ────────────────────────────────────────────────────────
+const THEME_PACKS = {
+  default: {
+    name: "Default Theme",
+    appBg: "#060D1A",
+    text: "#E2E8F8",
+    headerBg: "linear-gradient(135deg, #0A1628 0%, #0F2040 50%, #0A1628 100%)",
+    tabBarBg: "#080F1E",
+    cardBg: "#0D1828",
+    border: "#1A3050",
+    accent: "#FF6B2B",
+    muted: "#4A6080",
+  },
+  csk: { name: "CSK Theme", appBg: "#091325", text: "#F6FAFF", headerBg: "linear-gradient(135deg, #2A2B05 0%, #1A2240 60%, #0A152A 100%)", tabBarBg: "#111726", cardBg: "#0F1D34", border: "#2A3A58", accent: "#F9CD05", muted: "#7E90AF" },
+  mi: { name: "MI Theme", appBg: "#071326", text: "#E8F4FF", headerBg: "linear-gradient(135deg, #002B5B 0%, #005DA0 55%, #0A1D38 100%)", tabBarBg: "#081A31", cardBg: "#0C203C", border: "#20446B", accent: "#4FC3F7", muted: "#7E9CC0" },
+  rcb: { name: "RCB Theme", appBg: "#120A10", text: "#FCEEF2", headerBg: "linear-gradient(135deg, #3A0A16 0%, #C8102E 55%, #1B0F14 100%)", tabBarBg: "#180E15", cardBg: "#22111A", border: "#4A2030", accent: "#FFD700", muted: "#A88391" },
+  kkr: { name: "KKR Theme", appBg: "#0E0A1A", text: "#F1EAFF", headerBg: "linear-gradient(135deg, #2A1448 0%, #3A225D 55%, #120B22 100%)", tabBarBg: "#151028", cardBg: "#1A1330", border: "#3A2A58", accent: "#F4C430", muted: "#9889B8" },
+  dc: { name: "DC Theme", appBg: "#081224", text: "#EAF4FF", headerBg: "linear-gradient(135deg, #002D62 0%, #004C93 55%, #0A1A34 100%)", tabBarBg: "#0A1730", cardBg: "#0E1D3A", border: "#26456D", accent: "#EF1C25", muted: "#7F9BC0" },
+  srh: { name: "SRH Theme", appBg: "#150E0A", text: "#FFF1E7", headerBg: "linear-gradient(135deg, #4A1800 0%, #FF6600 55%, #1E130F 100%)", tabBarBg: "#1A120D", cardBg: "#24170F", border: "#523322", accent: "#FF9A3C", muted: "#B28E77" },
+  rr: { name: "RR Theme", appBg: "#120913", text: "#FFEFFC", headerBg: "linear-gradient(135deg, #5C0D46 0%, #E8116E 55%, #2B1030 100%)", tabBarBg: "#1A0F20", cardBg: "#24122D", border: "#5A2B70", accent: "#69A7FF", muted: "#B28CC6" },
+  pbks: { name: "PBKS Theme", appBg: "#130A12", text: "#FFF0F3", headerBg: "linear-gradient(135deg, #5A091D 0%, #C8122A 55%, #220E16 100%)", tabBarBg: "#190E16", cardBg: "#24121B", border: "#5A2937", accent: "#F3F4F6", muted: "#AD8D98" },
+  lsg: { name: "LSG Theme", appBg: "#130C0A", text: "#FFF2EB", headerBg: "linear-gradient(135deg, #4A1A14 0%, #A72B2A 55%, #231411 100%)", tabBarBg: "#1A110F", cardBg: "#241713", border: "#5C3B32", accent: "#FBCA05", muted: "#B69A88" },
+  gt: { name: "GT Theme", appBg: "#091225", text: "#EDF4FF", headerBg: "linear-gradient(135deg, #132B4E 0%, #1D4E8F 55%, #0D1E38 100%)", tabBarBg: "#0C1730", cardBg: "#11203C", border: "#2D4F78", accent: "#A0C0F0", muted: "#86A2C7" },
+};
+
 const S = {
   app: {
     fontFamily: "'DM Sans', 'Segoe UI', system-ui, sans-serif",
-    background: "#060D1A",
+    background: "var(--bg-app)",
     minHeight: "100vh",
-    color: "#E2E8F8",
+    color: "var(--text-main)",
   },
   header: {
-    background: "linear-gradient(135deg, #0A1628 0%, #0F2040 50%, #0A1628 100%)",
-    borderBottom: "1px solid #1A3050",
+    background: "var(--bg-header)",
+    borderBottom: "1px solid var(--border-main)",
     padding: "14px 18px",
   },
   tabBar: {
-    background: "#080F1E",
-    borderBottom: "1px solid #1A3050",
+    background: "var(--bg-tabbar)",
+    borderBottom: "1px solid var(--border-main)",
     display: "flex",
     padding: "0 18px",
   },
@@ -401,8 +425,8 @@ const S = {
     padding: "11px 4px",
     background: "none",
     border: "none",
-    borderBottom: active ? "2px solid #FF6B2B" : "2px solid transparent",
-    color: active ? "#FF6B2B" : "#4A6080",
+    borderBottom: active ? "2px solid var(--accent-main)" : "2px solid transparent",
+    color: active ? "var(--accent-main)" : "var(--text-muted)",
     fontSize: 11,
     fontWeight: 700,
     cursor: "pointer",
@@ -410,7 +434,7 @@ const S = {
     transition: "all .18s",
   }),
   card: (border = "#1A3050") => ({
-    background: "#0D1828",
+    background: "var(--bg-card)",
     border: `1px solid ${border}`,
     borderRadius: 14,
     padding: 16,
@@ -431,9 +455,9 @@ const S = {
     flex: 1,
     padding: "9px 6px",
     borderRadius: 10,
-    border: `2px solid ${active ? accentColor : "#1A3050"}`,
-    background: active ? accentColor + "22" : "#060D1A",
-    color: active ? accentColor : "#4A6080",
+    border: `2px solid ${active ? accentColor : "var(--border-main)"}`,
+    background: active ? accentColor + "22" : "var(--bg-app)",
+    color: active ? accentColor : "var(--text-muted)",
     fontWeight: 700,
     fontSize: 13,
     cursor: "pointer",
@@ -560,6 +584,9 @@ function Toast({ msg, type }) {
 
 // ─── Main App ──────────────────────────────────────────────────────
 export default function App() {
+  const [themeId, setThemeId] = useState(() => {
+    try { return localStorage.getItem("betzone_theme") || "default"; } catch { return "default"; }
+  });
   const [tab, setTab] = useState("leaderboard");
   const [selectedPlayer, setSelectedPlayer] = useState(PLAYERS[0]);
   const [revealedPicks, setRevealedPicks] = useState({}); // tracks which match picks are revealed
@@ -583,6 +610,10 @@ export default function App() {
   const [customAvatars, setCustomAvatars] = useState({}); // avatar overrides from Firebase
   const [avatarPicker, setAvatarPicker] = useState(null); // player name whose avatar is being edited
   const [toast, setToast] = useState(null);
+  const [rankFlash, setRankFlash] = useState({});
+  const prevRanksRef = useRef(null);
+  const [confettiPieces, setConfettiPieces] = useState([]);
+  const confettiTimerRef = useRef(null);
 
   // Firebase state
   const [bets, setBets] = useState({});
@@ -599,6 +630,7 @@ export default function App() {
   const [adminMode, setAdminMode] = useState(false);
   const [adminTaps, setAdminTaps] = useState(0);
   const adminTimer = useRef(null);
+  const activeTheme = THEME_PACKS[themeId] || THEME_PACKS.default;
 
   // ── Firebase listeners ────────────────────────────────────────
   useEffect(() => {
@@ -628,6 +660,8 @@ export default function App() {
     setMatches(schedule);
     setLoading(false);
   }, []);
+
+  useEffect(() => () => clearTimeout(confettiTimerRef.current), []);
 
   // Computed PLAYER_META merging base + custom avatars from Firebase
   const PLAYER_META = Object.fromEntries(PLAYERS.map(p => {
@@ -772,6 +806,27 @@ export default function App() {
   function notify(msg, type = "success") {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3000);
+  }
+
+  useEffect(() => {
+    try { localStorage.setItem("betzone_theme", themeId); } catch {}
+  }, [themeId]);
+
+  function launchConfetti() {
+    clearTimeout(confettiTimerRef.current);
+    const emojis = ["🎉", "✨", "🏏", "🎊", "🥳", "⭐"];
+    const pieces = Array.from({ length: 42 }, (_, i) => ({
+      id: `${Date.now()}_${i}`,
+      left: Math.random() * 100,
+      delay: Math.random() * 0.45,
+      duration: 1.8 + Math.random() * 1.1,
+      drift: (Math.random() - 0.5) * 120,
+      rotate: (Math.random() - 0.5) * 180,
+      emoji: emojis[Math.floor(Math.random() * emojis.length)],
+      size: 16 + Math.random() * 12,
+    }));
+    setConfettiPieces(pieces);
+    confettiTimerRef.current = setTimeout(() => setConfettiPieces([]), 3200);
   }
 
   // ── Bets ──────────────────────────────────────────────────────
@@ -921,6 +976,23 @@ export default function App() {
     if (rank === 2) return "🥈";
     return "🥉";
   }
+  const rankByPlayer = Object.fromEntries(PLAYERS.map(p => [p, getRank(p)]));
+  const rankSnapshot = PLAYERS.map(p => `${p}:${rankByPlayer[p]}:${pts[p]}`).join("|");
+
+  useEffect(() => {
+    const prev = prevRanksRef.current;
+    if (prev) {
+      const changed = {};
+      PLAYERS.forEach(p => {
+        if (prev[p] !== rankByPlayer[p]) changed[p] = true;
+      });
+      if (Object.keys(changed).length > 0) {
+        setRankFlash(changed);
+        setTimeout(() => setRankFlash({}), 1700);
+      }
+    }
+    prevRanksRef.current = rankByPlayer;
+  }, [rankSnapshot]);
 
   const upcomingMatches = matches.filter(m => getEffectiveStatus(m) === "upcoming");
   const liveMatches = matches.filter(m => getEffectiveStatus(m) === "live");
@@ -943,6 +1015,33 @@ export default function App() {
     })
     .filter(x => x.missingWinner || x.missingToss);
   const shouldShowBetReminder = nextFiveUpcoming.length > 0 && missingUpcomingBets.length > 0;
+
+  useEffect(() => {
+    const done = matches
+      .filter(m => getEffectiveStatus(m) === "completed")
+      .sort((a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime());
+    if (done.length === 0) return;
+
+    let seen = {};
+    try { seen = JSON.parse(localStorage.getItem("betzone_seenPerfects") || "{}"); } catch {}
+
+    const latestUnseenPerfect = done.find(match => {
+      const winner = getEffectiveWinner(match);
+      const tossWinner = getEffectiveTossWinner(match);
+      if (!winner || !tossWinner) return false;
+      const k = `${match.id}__${selectedPlayer}`;
+      const perfect = bets[k] === winner && tossGuesses[k] === tossWinner;
+      return perfect && !seen[`${selectedPlayer}__${match.id}`];
+    });
+
+    if (latestUnseenPerfect) {
+      const key = `${selectedPlayer}__${latestUnseenPerfect.id}`;
+      seen[key] = true;
+      try { localStorage.setItem("betzone_seenPerfects", JSON.stringify(seen)); } catch {}
+      launchConfetti();
+      notify(`🎉 Perfect pick! ${selectedPlayer} nailed winner + toss.`, "success");
+    }
+  }, [selectedPlayer, matches, bets, tossGuesses, manualResults]);
 
   async function sendBetReminderToChat() {
     const info = getPlatformInfo();
@@ -1180,7 +1279,17 @@ export default function App() {
 
   // ─────────────────────────────────────────────────────────────
   return (
-    <div style={S.app}>
+    <div style={{
+      ...S.app,
+      "--bg-app": activeTheme.appBg,
+      "--text-main": activeTheme.text,
+      "--bg-header": activeTheme.headerBg,
+      "--bg-tabbar": activeTheme.tabBarBg,
+      "--bg-card": activeTheme.cardBg,
+      "--border-main": activeTheme.border,
+      "--accent-main": activeTheme.accent,
+      "--text-muted": activeTheme.muted,
+    }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Syne:wght@700;800&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1188,10 +1297,34 @@ export default function App() {
         @keyframes slideDown { from { transform: translateX(-50%) translateY(-10px); opacity:0; } to { transform: translateX(-50%) translateY(0); opacity:1; } }
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+        @keyframes rankPulse { 0% { transform: scale(1); } 35% { transform: scale(1.05); } 100% { transform: scale(1); } }
+        @keyframes correctPulse { 0% { box-shadow: 0 0 0 rgba(34,197,94,0); } 50% { box-shadow: 0 0 14px rgba(34,197,94,.28); } 100% { box-shadow: 0 0 0 rgba(34,197,94,0); } }
+        @keyframes confettiDrop {
+          0% { transform: translate3d(0, -12vh, 0) rotate(0deg); opacity: 1; }
+          100% { transform: translate3d(var(--drift, 0px), 105vh, 0) rotate(var(--rot, 180deg)); opacity: 0; }
+        }
         ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: #060D1A; } ::-webkit-scrollbar-thumb { background: #1A3050; border-radius: 4px; }
       `}</style>
 
       {toast && <Toast msg={toast.msg} type={toast.type} />}
+      {confettiPieces.length > 0 && (
+        <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 9998, overflow: "hidden" }}>
+          {confettiPieces.map(piece => (
+            <span key={piece.id} style={{
+              position: "absolute",
+              left: `${piece.left}%`,
+              top: "-10vh",
+              fontSize: piece.size,
+              opacity: 0.95,
+              animation: `confettiDrop ${piece.duration}s linear ${piece.delay}s forwards`,
+              "--drift": `${piece.drift}px`,
+              "--rot": `${piece.rotate}deg`,
+            }}>
+              {piece.emoji}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Header */}
       <div style={S.header}>
@@ -1205,7 +1338,27 @@ export default function App() {
 
             </div>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+            <select
+              value={themeId}
+              onChange={e => setThemeId(e.target.value)}
+              style={{
+                background: "#0A1420",
+                border: "1px solid var(--border-main)",
+                color: "var(--text-main)",
+                borderRadius: 8,
+                padding: "4px 8px",
+                fontSize: 10,
+                fontWeight: 700,
+                minWidth: 130,
+                cursor: "pointer",
+              }}
+            >
+              {Object.entries(THEME_PACKS).map(([id, t]) => (
+                <option key={id} value={id}>{t.name}</option>
+              ))}
+            </select>
+            <div style={{ display: "flex", gap: 8 }}>
             {PLAYERS.map(p => (
               <div key={p} style={{ textAlign: "center", cursor: "pointer" }}
                 onClick={() => setAvatarPicker(p)}>
@@ -1224,6 +1377,7 @@ export default function App() {
                 </div>
               </div>
             ))}
+            </div>
           </div>
         </div>
       </div>
@@ -1347,7 +1501,7 @@ export default function App() {
                 const nameSize = isTop ? 15 : 12;
                 const ptsSize  = isTop ? 30 : 22;
                 return (
-                  <div key={player} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                  <div key={player} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, animation: rankFlash[player] ? "rankPulse .8s ease-in-out 2" : "none" }}>
                     <div style={{ fontSize: emojiSize }}>{meta.emoji}</div>
                     <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: nameSize, color: meta.color }}>{player}</div>
                     <div style={{ fontSize: ptsSize, fontWeight: 900, color: "#FFD700", lineHeight: 1 }}>{pts[player]}</div>
@@ -1369,7 +1523,7 @@ export default function App() {
               const maxPts = Math.max(...Object.values(pts), 1);
               const pct = Math.round((pts[player] / maxPts) * 100);
               return (
-                <div key={player} style={{ ...S.card(meta.color + "44"), position: "relative", overflow: "hidden" }}>
+                <div key={player} style={{ ...S.card(meta.color + "44"), position: "relative", overflow: "hidden", animation: rankFlash[player] ? "rankPulse .8s ease-in-out 2" : "none" }}>
                   <div style={{ position: "absolute", top: 0, left: 0, width: `${pct}%`, height: 3, background: `linear-gradient(90deg, ${meta.color}, transparent)` }} />
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <div style={{ fontSize: 26, width: 36 }}>{getRankLabel(getRank(player))}</div>
@@ -1710,7 +1864,7 @@ export default function App() {
                       const pb = bets[`${match.id}__${p}`];
                       const correct = winner && pb === winner;
                       return (
-                        <span key={p} style={{ fontSize: 10, padding: "3px 8px", borderRadius: 20, background: correct ? "#14532D33" : "#0A1420", color: correct ? "#22C55E" : "#4A6080", border: `1px solid ${correct ? "#22C55E33" : "#1A3050"}` }}>
+                          <span key={p} style={{ fontSize: 10, padding: "3px 8px", borderRadius: 20, background: correct ? "#14532D33" : "#0A1420", color: correct ? "#22C55E" : "#4A6080", border: `1px solid ${correct ? "#22C55E33" : "#1A3050"}`, animation: correct ? "correctPulse 1.7s ease-in-out infinite" : "none" }}>
                           {PLAYER_META[p].emoji} {pb || "—"}{correct ? " ✅" : ""}
                         </span>
                       );
@@ -1838,11 +1992,11 @@ export default function App() {
                         <div key={p} style={{ flex: 1, background: "#060D1A", borderRadius: 10, padding: "10px 8px", border: `1px solid ${earned > 0 ? (isAbandoned ? "#60A5FA55" : meta.color + "55") : "#1A3050"}` }}>
                           <div style={{ fontSize: 12, fontWeight: 700, color: meta.color, marginBottom: 4 }}>{meta.emoji} {p}</div>
                           {!isAbandoned && (
-                            <div style={{ fontSize: 10, color: "#4A6080" }}>Pick: <span style={{ color: winOk ? "#22C55E" : "#EF4444", fontWeight: 700 }}>{pb || "—"}</span></div>
+                            <div style={{ fontSize: 10, color: "#4A6080" }}>Pick: <span style={{ color: winOk ? "#22C55E" : "#EF4444", fontWeight: 700, animation: winOk ? "correctPulse 1.7s ease-in-out infinite" : "none", display: "inline-block", padding: "0 2px", borderRadius: 4 }}>{pb || "—"}</span></div>
                           )}
                           {(tossWinner || isAbandoned) && tossHappened !== false && (
                             <div style={{ fontSize: 10, color: "#4A6080" }}>
-                              Toss: <span style={{ color: tossOk ? "#22C55E" : isAbandoned ? "#4A6080" : "#EF4444", fontWeight: 700 }}>{pt || "—"}</span>
+                              Toss: <span style={{ color: tossOk ? "#22C55E" : isAbandoned ? "#4A6080" : "#EF4444", fontWeight: 700, animation: tossOk ? "correctPulse 1.7s ease-in-out infinite" : "none", display: "inline-block", padding: "0 2px", borderRadius: 4 }}>{pt || "—"}</span>
                             </div>
                           )}
                           {isAbandoned && <div style={{ fontSize: 9, color: "#60A5FA", marginTop: 2 }}>🌧️ +1 abandon{tossOk ? " +1 toss" : ""}</div>}
