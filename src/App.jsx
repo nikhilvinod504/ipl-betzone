@@ -1434,34 +1434,29 @@ export default function App() {
               IPL 2026 · Results managed via Admin panel
 
             </div>
+            <div style={{ marginTop: 8 }}>
+              <select
+                value={themeId}
+                onChange={e => setThemeId(e.target.value)}
+                style={{
+                  background: "#0A1420",
+                  border: "1px solid var(--border-main)",
+                  color: "var(--text-main)",
+                  borderRadius: 8,
+                  padding: "4px 8px",
+                  fontSize: 10,
+                  fontWeight: 700,
+                  minWidth: 150,
+                  cursor: "pointer",
+                }}
+              >
+                {Object.entries(THEME_PACKS).map(([id, t]) => (
+                  <option key={id} value={id}>{t.name}</option>
+                ))}
+              </select>
+            </div>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
-            <select
-              value={themeId}
-              onChange={e => setThemeId(e.target.value)}
-              style={{
-                background: "#0A1420",
-                border: "1px solid var(--border-main)",
-                color: "var(--text-main)",
-                borderRadius: 8,
-                padding: "4px 8px",
-                fontSize: 10,
-                fontWeight: 700,
-                minWidth: 130,
-                cursor: "pointer",
-              }}
-            >
-              {Object.entries(THEME_PACKS).map(([id, t]) => (
-                <option key={id} value={id}>{t.name}</option>
-              ))}
-            </select>
-            {themeTeam && (
-              <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#0A1420AA", border: "1px solid var(--border-main)", borderRadius: 20, padding: "2px 8px" }}>
-                <img src={themeTeam.logo} alt={`${themeTeamCode} logo`} style={{ width: 18, height: 18, objectFit: "contain" }} />
-                <span style={{ fontSize: 10, color: "var(--text-main)", fontWeight: 700 }}>{themeTeamCode} Theme</span>
-              </div>
-            )}
-            <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8 }}>
             {PLAYERS.map(p => (
               <div key={p} style={{ textAlign: "center", cursor: "pointer" }}
                 onClick={() => setAvatarPicker(p)}>
@@ -1480,7 +1475,6 @@ export default function App() {
                 </div>
               </div>
             ))}
-            </div>
           </div>
         </div>
       </div>
