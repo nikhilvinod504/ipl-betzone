@@ -413,7 +413,7 @@ const S = {
   header: {
     background: "var(--bg-header)",
     borderBottom: "1px solid var(--border-main)",
-    padding: "14px 18px",
+    padding: "12px 18px 6px",
   },
   tabBar: {
     background: "var(--bg-tabbar)",
@@ -599,6 +599,7 @@ export default function App() {
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState("");
   const [chatSender, setChatSender] = useState(null); // auto-detected from device
+  const [devicePlayer, setDevicePlayer] = useState(null); // strict player identity inferred from device
   const [replyTo, setReplyTo] = useState(null); // { id, sender, text } of message being replied to
   const [reactionPicker, setReactionPicker] = useState(null); // msgId showing emoji picker
   const [longPressMsg, setLongPressMsg] = useState(null); // msgId showing context menu
@@ -694,7 +695,10 @@ export default function App() {
   // Auto-detect chat sender from device profile on mount
   useEffect(() => {
     const info = getPlatformInfo();
-    if (info.likelyUser) setChatSender(info.likelyUser);
+    if (info.likelyUser) {
+      setChatSender(info.likelyUser);
+      setDevicePlayer(info.likelyUser);
+    }
   }, []);
 
   // ── Auto-lock: check every 5 mins if any match is within 30 mins ──
@@ -1004,9 +1008,10 @@ export default function App() {
   const nextFiveUpcoming = [...upcomingMatches]
     .sort((a, b) => new Date(a.rawDate).getTime() - new Date(b.rawDate).getTime())
     .slice(0, 5);
+  const reminderPlayer = devicePlayer || null;
   const missingUpcomingBets = nextFiveUpcoming
     .map(match => {
-      const key = `${match.id}__${selectedPlayer}`;
+      const key = `${match.id}__${reminderPlayer}`;
       const hasWinnerPick = !!bets[key];
       const hasTossPick = !!tossGuesses[key];
       return {
@@ -1018,7 +1023,7 @@ export default function App() {
       };
     })
     .filter(x => x.missingWinner || x.missingToss);
-  const shouldShowBetReminder = nextFiveUpcoming.length > 0 && missingUpcomingBets.length > 0;
+  const shouldShowBetReminder = !!reminderPlayer && nextFiveUpcoming.length > 0 && missingUpcomingBets.length > 0;
 
   useEffect(() => {
     const done = matches
@@ -1048,6 +1053,7 @@ export default function App() {
   }, [selectedPlayer, matches, bets, tossGuesses, manualResults]);
 
   async function sendBetReminderToChat() {
+    if (!reminderPlayer) return;
     const info = getPlatformInfo();
     const ts = Date.now();
     const preview = missingUpcomingBets
@@ -1059,12 +1065,12 @@ export default function App() {
 
     const msg = {
       id: ts,
-      sender: selectedPlayer,
-      text: `⏰ ${selectedPlayer}: I still need to finish bets for ${missingUpcomingBets.length}/${nextFiveUpcoming.length} upcoming games (${preview}${moreText}).`,
+      sender: reminderPlayer,
+      text: `⏰ ${reminderPlayer}: I still need to finish bets for ${missingUpcomingBets.length}/${nextFiveUpcoming.length} upcoming games (${preview}${moreText}).`,
       timestamp: ts,
       deviceType: info.deviceType,
       timezone: info.timezone,
-      likelyUser: info.likelyUser || selectedPlayer,
+      likelyUser: info.likelyUser || reminderPlayer,
     };
     await set(ref(db, `chat/${ts}`), msg);
     notify("⏰ Reminder posted in chat.", "info");
@@ -1434,7 +1440,7 @@ export default function App() {
               IPL 2026 · Results managed via Admin panel
 
             </div>
-            <div style={{ marginTop: 8 }}>
+            <div style={{ marginTop: 3 }}>
               <select
                 value={themeId}
                 onChange={e => setThemeId(e.target.value)}
@@ -1456,7 +1462,7 @@ export default function App() {
               </select>
             </div>
           </div>
-          <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+          <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
             {PLAYERS.map(p => (
               <div key={p} style={{ textAlign: "center", cursor: "pointer" }}
                 onClick={() => setAvatarPicker(p)}>
@@ -1533,7 +1539,7 @@ export default function App() {
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
               <div>
                 <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 12, fontWeight: 800, color: "#FCA5A5" }}>
-                  ⚠️ Bet Reminder for {PLAYER_META[selectedPlayer]?.emoji} {selectedPlayer}
+                  ⚠️ Bet Reminder for {PLAYER_META[reminderPlayer]?.emoji} {reminderPlayer}
                 </div>
                 <div style={{ fontSize: 11, color: "#7A90B0", marginTop: 2 }}>
                   Missing bets in {missingUpcomingBets.length} of next {nextFiveUpcoming.length} upcoming matches.
