@@ -389,17 +389,18 @@ const THEME_PACKS = {
     border: "#1A3050",
     accent: "#FF6B2B",
     muted: "#4A6080",
+    watermark: { right: -14, top: -18, size: 128, opacity: 0.12 },
   },
-  csk: { name: "CSK Theme", appBg: "#120F03", text: "#FFFBEA", headerBg: "linear-gradient(135deg, #FFE04D 0%, #F9CD05 48%, #D4A017 100%)", tabBarBg: "#2B2408", cardBg: "#33290A", border: "#7A6110", accent: "#FFD700", muted: "#E8CF73" },
-  mi: { name: "MI Theme", appBg: "#071326", text: "#E8F4FF", headerBg: "linear-gradient(135deg, #002B5B 0%, #005DA0 55%, #0A1D38 100%)", tabBarBg: "#081A31", cardBg: "#0C203C", border: "#20446B", accent: "#4FC3F7", muted: "#7E9CC0" },
-  rcb: { name: "RCB Theme", appBg: "#120A10", text: "#FCEEF2", headerBg: "linear-gradient(135deg, #3A0A16 0%, #C8102E 55%, #1B0F14 100%)", tabBarBg: "#180E15", cardBg: "#22111A", border: "#4A2030", accent: "#FFD700", muted: "#A88391" },
-  kkr: { name: "KKR Theme", appBg: "#0E0A1A", text: "#F1EAFF", headerBg: "linear-gradient(135deg, #2A1448 0%, #3A225D 55%, #120B22 100%)", tabBarBg: "#151028", cardBg: "#1A1330", border: "#3A2A58", accent: "#F4C430", muted: "#9889B8" },
-  dc: { name: "DC Theme", appBg: "#081224", text: "#EAF4FF", headerBg: "linear-gradient(135deg, #002D62 0%, #004C93 55%, #0A1A34 100%)", tabBarBg: "#0A1730", cardBg: "#0E1D3A", border: "#26456D", accent: "#EF1C25", muted: "#7F9BC0" },
-  srh: { name: "SRH Theme", appBg: "#150E0A", text: "#FFF1E7", headerBg: "linear-gradient(135deg, #4A1800 0%, #FF6600 55%, #1E130F 100%)", tabBarBg: "#1A120D", cardBg: "#24170F", border: "#523322", accent: "#FF9A3C", muted: "#B28E77" },
-  rr: { name: "RR Theme", appBg: "#120913", text: "#FFEFFC", headerBg: "linear-gradient(135deg, #5C0D46 0%, #E8116E 55%, #2B1030 100%)", tabBarBg: "#1A0F20", cardBg: "#24122D", border: "#5A2B70", accent: "#69A7FF", muted: "#B28CC6" },
-  pbks: { name: "PBKS Theme", appBg: "#130A12", text: "#FFF0F3", headerBg: "linear-gradient(135deg, #5A091D 0%, #C8122A 55%, #220E16 100%)", tabBarBg: "#190E16", cardBg: "#24121B", border: "#5A2937", accent: "#F3F4F6", muted: "#AD8D98" },
-  lsg: { name: "LSG Theme", appBg: "#130C0A", text: "#FFF2EB", headerBg: "linear-gradient(135deg, #4A1A14 0%, #A72B2A 55%, #231411 100%)", tabBarBg: "#1A110F", cardBg: "#241713", border: "#5C3B32", accent: "#FBCA05", muted: "#B69A88" },
-  gt: { name: "GT Theme", appBg: "#091225", text: "#EDF4FF", headerBg: "linear-gradient(135deg, #132B4E 0%, #1D4E8F 55%, #0D1E38 100%)", tabBarBg: "#0C1730", cardBg: "#11203C", border: "#2D4F78", accent: "#A0C0F0", muted: "#86A2C7" },
+  csk: { name: "CSK Theme", appBg: "#120F03", text: "#FFFBEA", headerBg: "linear-gradient(135deg, #FFE04D 0%, #F9CD05 48%, #D4A017 100%)", tabBarBg: "#2B2408", cardBg: "#33290A", border: "#7A6110", accent: "#FFD700", muted: "#E8CF73", watermark: { right: -8, top: -20, size: 132, opacity: 0.16 } },
+  mi: { name: "MI Theme", appBg: "#071326", text: "#E8F4FF", headerBg: "linear-gradient(135deg, #002B5B 0%, #005DA0 55%, #0A1D38 100%)", tabBarBg: "#081A31", cardBg: "#0C203C", border: "#20446B", accent: "#4FC3F7", muted: "#7E9CC0", watermark: { right: -16, top: -22, size: 134, opacity: 0.14 } },
+  rcb: { name: "RCB Theme", appBg: "#120A10", text: "#FCEEF2", headerBg: "linear-gradient(135deg, #3A0A16 0%, #C8102E 55%, #1B0F14 100%)", tabBarBg: "#180E15", cardBg: "#22111A", border: "#4A2030", accent: "#FFD700", muted: "#A88391", watermark: { right: -10, top: -20, size: 128, opacity: 0.15 } },
+  kkr: { name: "KKR Theme", appBg: "#0E0A1A", text: "#F1EAFF", headerBg: "linear-gradient(135deg, #2A1448 0%, #3A225D 55%, #120B22 100%)", tabBarBg: "#151028", cardBg: "#1A1330", border: "#3A2A58", accent: "#F4C430", muted: "#9889B8", watermark: { right: -12, top: -18, size: 126, opacity: 0.14 } },
+  dc: { name: "DC Theme", appBg: "#081224", text: "#EAF4FF", headerBg: "linear-gradient(135deg, #002D62 0%, #004C93 55%, #0A1A34 100%)", tabBarBg: "#0A1730", cardBg: "#0E1D3A", border: "#26456D", accent: "#EF1C25", muted: "#7F9BC0", watermark: { right: -18, top: -20, size: 136, opacity: 0.13 } },
+  srh: { name: "SRH Theme", appBg: "#150E0A", text: "#FFF1E7", headerBg: "linear-gradient(135deg, #4A1800 0%, #FF6600 55%, #1E130F 100%)", tabBarBg: "#1A120D", cardBg: "#24170F", border: "#523322", accent: "#FF9A3C", muted: "#B28E77", watermark: { right: -10, top: -18, size: 130, opacity: 0.15 } },
+  rr: { name: "RR Theme", appBg: "#120913", text: "#FFEFFC", headerBg: "linear-gradient(135deg, #5C0D46 0%, #E8116E 55%, #2B1030 100%)", tabBarBg: "#1A0F20", cardBg: "#24122D", border: "#5A2B70", accent: "#69A7FF", muted: "#B28CC6", watermark: { right: -14, top: -20, size: 128, opacity: 0.14 } },
+  pbks: { name: "PBKS Theme", appBg: "#130A12", text: "#FFF0F3", headerBg: "linear-gradient(135deg, #5A091D 0%, #C8122A 55%, #220E16 100%)", tabBarBg: "#190E16", cardBg: "#24121B", border: "#5A2937", accent: "#F3F4F6", muted: "#AD8D98", watermark: { right: -16, top: -18, size: 130, opacity: 0.14 } },
+  lsg: { name: "LSG Theme", appBg: "#130C0A", text: "#FFF2EB", headerBg: "linear-gradient(135deg, #4A1A14 0%, #A72B2A 55%, #231411 100%)", tabBarBg: "#1A110F", cardBg: "#241713", border: "#5C3B32", accent: "#FBCA05", muted: "#B69A88", watermark: { right: -14, top: -16, size: 126, opacity: 0.14 } },
+  gt: { name: "GT Theme", appBg: "#091225", text: "#EDF4FF", headerBg: "linear-gradient(135deg, #132B4E 0%, #1D4E8F 55%, #0D1E38 100%)", tabBarBg: "#0C1730", cardBg: "#11203C", border: "#2D4F78", accent: "#A0C0F0", muted: "#86A2C7", watermark: { right: -15, top: -20, size: 134, opacity: 0.13 } },
 };
 
 const S = {
@@ -631,6 +632,9 @@ export default function App() {
   const [adminTaps, setAdminTaps] = useState(0);
   const adminTimer = useRef(null);
   const activeTheme = THEME_PACKS[themeId] || THEME_PACKS.default;
+  const themeTeamCode = themeId === "default" ? null : themeId.toUpperCase();
+  const themeTeam = themeTeamCode ? IPL_TEAMS[themeTeamCode] : null;
+  const wm = activeTheme.watermark || { right: -14, top: -18, size: 128, opacity: 0.12 };
 
   // ── Firebase listeners ────────────────────────────────────────
   useEffect(() => {
@@ -1189,6 +1193,9 @@ export default function App() {
   function calcStats() {
     const done = completedMatches;
     const total = done.length;
+    const weekMs = 7 * 24 * 60 * 60 * 1000;
+    const weekCutoff = Date.now() - weekMs;
+    const weeklyDone = done.filter(m => new Date(m.rawDate).getTime() >= weekCutoff);
 
     const playerStats = Object.fromEntries(PLAYERS.map(p => ({
       [p]: {
@@ -1221,6 +1228,79 @@ export default function App() {
         if (myToss) { s.totalToss++; if (myToss === tossWinner) s.tossPicks++; }
       }
     }
+
+    // Weekly insights (MVP): Player of week, biggest climber, toss master
+    const weekPts = Object.fromEntries(PLAYERS.map(p => [p, 0]));
+    const weekToss = Object.fromEntries(PLAYERS.map(p => [p, { correct: 0, total: 0 }]));
+    const beforeWeekPts = Object.fromEntries(PLAYERS.map(p => [p, 0]));
+
+    const applyPointsForMatch = (targetPts, match) => {
+      const status = getEffectiveStatus(match);
+      const winner = getEffectiveWinner(match);
+      const tossWinner = getEffectiveTossWinner(match);
+      const manual = manualResults[fbKey(match.id)];
+      const isAbandoned = status === "abandoned";
+      const tossHappened = manual?.abandonedWithToss === true;
+
+      PLAYERS.forEach(p => {
+        const betKey = `${match.id}__${p}`;
+        const myBet = bets[betKey];
+        const myToss = tossGuesses[betKey];
+        if (isAbandoned) {
+          targetPts[p] += 1;
+          if (tossHappened && tossWinner && myToss === tossWinner) targetPts[p] += 1;
+        } else {
+          if (winner && myBet === winner) targetPts[p] += 2;
+          if (tossWinner && myToss === tossWinner) targetPts[p] += 1;
+        }
+      });
+    };
+
+    done
+      .filter(m => new Date(m.rawDate).getTime() < weekCutoff)
+      .forEach(m => applyPointsForMatch(beforeWeekPts, m));
+    weeklyDone.forEach(m => {
+      applyPointsForMatch(weekPts, m);
+      const tossWinner = getEffectiveTossWinner(m);
+      PLAYERS.forEach(p => {
+        const t = tossGuesses[`${m.id}__${p}`];
+        if (!t) return;
+        weekToss[p].total += 1;
+        if (tossWinner && t === tossWinner) weekToss[p].correct += 1;
+      });
+    });
+
+    const rankFromPts = (ptsByPlayer, player) => PLAYERS.filter(p => ptsByPlayer[p] > ptsByPlayer[player]).length + 1;
+    const currentRanks = Object.fromEntries(PLAYERS.map(p => [p, rankFromPts(pts, p)]));
+    const startWeekRanks = Object.fromEntries(PLAYERS.map(p => [p, rankFromPts(beforeWeekPts, p)]));
+    const climbByPlayer = Object.fromEntries(PLAYERS.map(p => [p, startWeekRanks[p] - currentRanks[p]]));
+
+    const playerOfWeek = [...PLAYERS].sort((a, b) => weekPts[b] - weekPts[a])[0] || PLAYERS[0];
+    const biggestClimber = [...PLAYERS].sort((a, b) => climbByPlayer[b] - climbByPlayer[a] || weekPts[b] - weekPts[a])[0] || PLAYERS[0];
+    const tossMaster = [...PLAYERS].sort((a, b) => {
+      const aPct = weekToss[a].total > 0 ? weekToss[a].correct / weekToss[a].total : -1;
+      const bPct = weekToss[b].total > 0 ? weekToss[b].correct / weekToss[b].total : -1;
+      return bPct - aPct || weekToss[b].correct - weekToss[a].correct;
+    })[0] || PLAYERS[0];
+
+    const weeklyInsights = {
+      matchesCount: weeklyDone.length,
+      playerOfWeek: {
+        player: playerOfWeek,
+        points: weekPts[playerOfWeek] || 0,
+      },
+      biggestClimber: {
+        player: biggestClimber,
+        climbed: Math.max(0, climbByPlayer[biggestClimber] || 0),
+        from: startWeekRanks[biggestClimber],
+        to: currentRanks[biggestClimber],
+      },
+      tossMaster: {
+        player: tossMaster,
+        correct: weekToss[tossMaster]?.correct || 0,
+        total: weekToss[tossMaster]?.total || 0,
+      },
+    };
 
     // Favourite team = most bet on
     // Lucky team = most points earned from
@@ -1260,7 +1340,7 @@ export default function App() {
       }
     }
 
-    return { enriched, h2h, total };
+    return { enriched, h2h, total, weeklyInsights };
   }
 
   // IPL Points Table state
@@ -1327,11 +1407,28 @@ export default function App() {
       )}
 
       {/* Header */}
-      <div style={S.header}>
+      <div style={{ ...S.header, position: "relative", overflow: "hidden" }}>
+        {themeTeam?.logo && (
+          <img
+            src={themeTeam.logo}
+            alt={`${themeTeamCode} theme`}
+            style={{
+              position: "absolute",
+              right: wm.right,
+              top: wm.top,
+              width: wm.size,
+              height: wm.size,
+              objectFit: "contain",
+              opacity: wm.opacity,
+              filter: "drop-shadow(0 6px 12px #0006)",
+              pointerEvents: "none",
+            }}
+          />
+        )}
         <div style={{ maxWidth: 640, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
             <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: -0.5 }}>
-              🏏 <span style={{ color: "#FF6B2B" }}>IPL</span><span style={{ color: "#FFD700" }}>BETZONE</span>
+              🏏 <span style={{ color: themeId === "csk" ? "#1E3A8A" : "#FF6B2B" }}>IPL</span><span style={{ color: themeId === "csk" ? "#0B1F4D" : "#FFD700" }}>BETZONE</span>
             </div>
             <div style={{ fontSize: 10, color: "#4A6080", marginTop: 2 }}>
               IPL 2026 · Results managed via Admin panel
@@ -1358,6 +1455,12 @@ export default function App() {
                 <option key={id} value={id}>{t.name}</option>
               ))}
             </select>
+            {themeTeam && (
+              <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#0A1420AA", border: "1px solid var(--border-main)", borderRadius: 20, padding: "2px 8px" }}>
+                <img src={themeTeam.logo} alt={`${themeTeamCode} logo`} style={{ width: 18, height: 18, objectFit: "contain" }} />
+                <span style={{ fontSize: 10, color: "var(--text-main)", fontWeight: 700 }}>{themeTeamCode} Theme</span>
+              </div>
+            )}
             <div style={{ display: "flex", gap: 8 }}>
             {PLAYERS.map(p => (
               <div key={p} style={{ textAlign: "center", cursor: "pointer" }}
@@ -2013,7 +2116,7 @@ export default function App() {
 
         {/* ── STATS ── */}
         {!loading && tab === "stats" && (() => {
-          const { enriched, h2h, total } = calcStats();
+          const { enriched, h2h, total, weeklyInsights } = calcStats();
 
           // Build points progression data from completed matches
           const progressionData = (() => {
@@ -2104,6 +2207,57 @@ export default function App() {
                         <span style={{ fontSize:10, color:PLAYER_META[p].color, fontWeight:700 }}>{PLAYER_META[p].emoji} {p}</span>
                       </div>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Weekly Insights (MVP) */}
+              <div style={{fontFamily:"'Syne',sans-serif",fontSize:13,color:"#FFD700",fontWeight:800,marginBottom:4,letterSpacing:0.5}}>🗓 WEEKLY INSIGHTS</div>
+              <div style={{ fontSize:11, color:"#4A6080", marginBottom:10 }}>
+                Last 7 days · {weeklyInsights.matchesCount} completed match{weeklyInsights.matchesCount === 1 ? "" : "es"}
+              </div>
+              {weeklyInsights.matchesCount === 0 ? (
+                <div style={{ ...S.card(), textAlign:"center", color:"#4A6080", padding:24, marginBottom:16 }}>
+                  <div style={{ fontSize:26, marginBottom:6 }}>🗓</div>
+                  <div style={{ fontSize:12, fontWeight:700 }}>No weekly insights yet</div>
+                  <div style={{ fontSize:10, marginTop:4 }}>Insights appear after completed matches in the last 7 days.</div>
+                </div>
+              ) : (
+                <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:10, marginBottom:16 }}>
+                  <div style={{ ...S.card(PLAYER_META[weeklyInsights.playerOfWeek.player]?.color + "55"), marginBottom:0, padding:12 }}>
+                    <div style={{ fontSize:10, color:"#4A6080", fontWeight:700, marginBottom:6 }}>🔥 PLAYER OF THE WEEK</div>
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                      <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, color:PLAYER_META[weeklyInsights.playerOfWeek.player]?.color }}>
+                        {PLAYER_META[weeklyInsights.playerOfWeek.player]?.emoji} {weeklyInsights.playerOfWeek.player}
+                      </div>
+                      <div style={{ fontSize:14, color:"#FFD700", fontWeight:800 }}>+{weeklyInsights.playerOfWeek.points} pts</div>
+                    </div>
+                  </div>
+
+                  <div style={{ ...S.card("#60A5FA55"), marginBottom:0, padding:12 }}>
+                    <div style={{ fontSize:10, color:"#4A6080", fontWeight:700, marginBottom:6 }}>📈 BIGGEST CLIMBER</div>
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                      <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, color:PLAYER_META[weeklyInsights.biggestClimber.player]?.color }}>
+                        {PLAYER_META[weeklyInsights.biggestClimber.player]?.emoji} {weeklyInsights.biggestClimber.player}
+                      </div>
+                      <div style={{ fontSize:12, color:"#93C5FD", fontWeight:800 }}>
+                        {weeklyInsights.biggestClimber.climbed > 0
+                          ? `#${weeklyInsights.biggestClimber.from} → #${weeklyInsights.biggestClimber.to}`
+                          : "No rank jump this week"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ ...S.card("#FFD70055"), marginBottom:0, padding:12 }}>
+                    <div style={{ fontSize:10, color:"#4A6080", fontWeight:700, marginBottom:6 }}>🪙 TOSS MASTER</div>
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                      <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, color:PLAYER_META[weeklyInsights.tossMaster.player]?.color }}>
+                        {PLAYER_META[weeklyInsights.tossMaster.player]?.emoji} {weeklyInsights.tossMaster.player}
+                      </div>
+                      <div style={{ fontSize:12, color:"#FFD700", fontWeight:800 }}>
+                        {weeklyInsights.tossMaster.correct}/{weeklyInsights.tossMaster.total || 0} correct
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
