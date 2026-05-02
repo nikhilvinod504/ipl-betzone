@@ -1092,10 +1092,13 @@ export default function App() {
 
 
   function getPlaceholderMatches() {
-    // Official IPL 2026 full schedule (70 league matches) — source: BCCI / Wisden
-    const m = (id, home, away, rawDate, date, time, venue) => ({
-      id, home, away, rawDate, date, time, venue, status: "upcoming", apiWinner: null,
+    // Official IPL 2026 league stage (70 matches). Optional 8th arg stage — use "playoff" for knockouts (excluded from league P/W/L).
+    const m = (id, home, away, rawDate, date, time, venue, stage = "league") => ({
+      id, home, away, rawDate, date, time, venue, status: "upcoming", apiWinner: null, stage,
     });
+    // When BCCI announces playoff bracket, append rows here (same `m(...)` shape, last arg "playoff"):
+    // m("ipl26-po-q1", "GT", "CSK", "2026-05-27T14:00:00Z", "27 May", "7:30 PM", "Narendra Modi Stadium, Ahmedabad", "playoff"),
+    const IPL_2026_PLAYOFFS = [];
     return [
       m("ipl26-1",  "RCB",  "SRH",  "2026-03-28T14:00:00Z", "28 Mar", "7:30 PM", "M. Chinnaswamy Stadium, Bengaluru"),
       m("ipl26-2",  "MI",   "KKR",  "2026-03-29T14:00:00Z", "29 Mar", "7:30 PM", "Wankhede Stadium, Mumbai"),
@@ -1167,6 +1170,7 @@ export default function App() {
       m("ipl26-68", "LSG",  "PBKS", "2026-05-23T14:00:00Z", "23 May", "7:30 PM", "BRSABV Ekana Stadium, Lucknow"),
       m("ipl26-69", "MI",   "RR",   "2026-05-24T10:00:00Z", "24 May", "3:30 PM", "Wankhede Stadium, Mumbai"),
       m("ipl26-70", "KKR",  "DC",   "2026-05-24T14:00:00Z", "24 May", "7:30 PM", "Eden Gardens, Kolkata"),
+      ...IPL_2026_PLAYOFFS,
     ];
   }
 
@@ -1199,6 +1203,11 @@ export default function App() {
 
   // ── Bets ──────────────────────────────────────────────────────
   function fbKey(id) { return id.replace(/[^a-zA-Z0-9_]/g, "_"); }
+
+  /** League-table / NRR context only — playoff knockouts use stage "playoff" */
+  function isLeagueStageMatch(match) {
+    return match?.stage !== "playoff";
+  }
 
   function getEffectiveStatus(match) {
     const manual = manualResults[fbKey(match.id)];
@@ -1505,6 +1514,24 @@ export default function App() {
   }, [completedEspnPollKey]);
 
   const completedMatches = matches.filter(m => getEffectiveStatus(m) === "completed" || getEffectiveStatus(m) === "abandoned");
+  const completedLeagueMatches = completedMatches.filter(isLeagueStageMatch);
+
+  /** Last 5 league results for a franchise (oldest→newest): W / L / wash — playoffs excluded */
+  function getIplTeamFormLast5(teamCode) {
+    const involved = completedLeagueMatches.filter(m => m.home === teamCode || m.away === teamCode)
+      .sort((a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime())
+      .slice(0, 5)
+      .reverse();
+    const cells = involved.map(match => {
+      const status = getEffectiveStatus(match);
+      if (status === "abandoned") return "wash";
+      const w = getEffectiveWinner(match);
+      if (!w) return "skip";
+      return w === teamCode ? "W" : "L";
+    });
+    while (cells.length < 5) cells.unshift("skip");
+    return cells;
+  }
 
   /** Last 5 completed fixtures (oldest→newest): W/L on winner pick, wash, or skip if no pick */
   function getPlayerFormLast5(player) {
@@ -2950,20 +2977,45 @@ export default function App() {
               {/* IPL Points Table */}
               <div style={{fontFamily:"'Syne',sans-serif",fontSize:13,color:"#FFD700",fontWeight:800,marginBottom:10,letterSpacing:0.5}}>🏏 IPL 2026 POINTS TABLE</div>
               <div style={{...S.card(),padding:0,overflow:"hidden",marginBottom:16}}>
-                <div style={{background:"#0A1420",padding:"8px 12px",display:"grid",gridTemplateColumns:"28px 1fr 32px 32px 32px 24px 50px 32px",gap:4,fontSize:9,fontWeight:700,color:"#4A6080",letterSpacing:0.5}}>
-                  <div>#</div><div>TEAM</div><div style={{textAlign:"center"}}>P</div><div style={{textAlign:"center"}}>W</div><div style={{textAlign:"center"}}>L</div><div style={{textAlign:"center",color:"#60A5FA"}}>NR</div><div style={{textAlign:"center"}}>NRR</div><div style={{textAlign:"center"}}>PTS</div>
+                <div style={{background:"#0A1420",padding:"8px 12px",display:"grid",gridTemplateColumns:"26px minmax(0,1fr) 92px 26px 26px 26px 22px 44px 28px",gap:4,fontSize:9,fontWeight:700,color:"#4A6080",letterSpacing:0.5}}>
+                  <div>#</div><div>TEAM</div><div style={{textAlign:"center"}}>FORM</div><div style={{textAlign:"center"}}>P</div><div style={{textAlign:"center"}}>W</div><div style={{textAlign:"center"}}>L</div><div style={{textAlign:"center",color:"#60A5FA"}}>NR</div><div style={{textAlign:"center"}}>NRR</div><div style={{textAlign:"center"}}>PTS</div>
                 </div>
                 {[...iplTable].sort((a,b)=>b.pts-a.pts||parseFloat(b.nrr)-parseFloat(a.nrr)).map((row,i)=>{
                   const t = IPL_TEAMS[row.team];
                   const isTop4 = i < 4;
+                  const formCells = getIplTeamFormLast5(row.team);
                   return (
-                    <div key={row.team} style={{padding:"8px 12px",display:"grid",gridTemplateColumns:"28px 1fr 32px 32px 32px 24px 50px 32px",gap:4,alignItems:"center",borderTop:"1px solid #0A1420",background:isTop4?"#FFD70008":"transparent"}}>
+                    <div key={row.team} style={{padding:"8px 12px",display:"grid",gridTemplateColumns:"26px minmax(0,1fr) 92px 26px 26px 26px 22px 44px 28px",gap:4,alignItems:"center",borderTop:"1px solid #0A1420",background:isTop4?"#FFD70008":"transparent"}}>
                       <div style={{fontSize:11,fontWeight:800,color:isTop4?"#FFD700":"#4A6080"}}>{i+1}</div>
-                      <div style={{display:"flex",alignItems:"center",gap:6}}>
+                      <div style={{display:"flex",alignItems:"center",gap:6,minWidth:0}}>
                         <div style={{width:22,height:22,borderRadius:"50%",background:t?.color||"#1A3050",border:`1px solid ${t?.accent||"#2A4060"}`,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                           {t?.logo ? <img src={t.logo} style={{width:"85%",height:"85%",objectFit:"contain"}} alt={row.team}/> : <span style={{fontSize:7,fontWeight:800,color:t?.accent}}>{row.team}</span>}
                         </div>
                         <span style={{fontSize:11,fontWeight:700,color:"#E2E8F8"}}>{row.team}</span>
+                      </div>
+                      <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:3, flexWrap:"nowrap" }}>
+                        {formCells.map((cell, fi) => (
+                          <span
+                            key={fi}
+                            title={cell === "W" ? "Win" : cell === "L" ? "Loss" : cell === "wash" ? "No result" : "—"}
+                            style={{
+                              fontSize: 8,
+                              fontWeight: 800,
+                              width: 16,
+                              height: 16,
+                              borderRadius: 4,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              background:
+                                cell === "W" ? "#14532D55" : cell === "L" ? "#7F1D1D55" : cell === "wash" ? "#1E3A5F55" : "#0A1420",
+                              color: cell === "W" ? "#22C55E" : cell === "L" ? "#FCA5A5" : cell === "wash" ? "#93C5FD" : "#4A6080",
+                              border: `1px solid ${cell === "W" ? "#22C55E44" : cell === "L" ? "#EF444444" : cell === "wash" ? "#60A5FA44" : "#1A3050"}`,
+                            }}
+                          >
+                            {cell === "W" ? "W" : cell === "L" ? "L" : cell === "wash" ? "◎" : "—"}
+                          </span>
+                        ))}
                       </div>
                       <div style={{fontSize:11,color:"#7A90B0",textAlign:"center"}}>{row.played}</div>
                       <div style={{fontSize:11,color:"#22C55E",textAlign:"center",fontWeight:700}}>{row.won}</div>
@@ -2974,7 +3026,9 @@ export default function App() {
                     </div>
                   );
                 })}
-                <div style={{padding:"6px 12px",fontSize:9,color:"#2A4060",borderTop:"1px solid #0A1420",textAlign:"center"}}>🟡 Top 4 qualify · Update via Admin panel</div>
+                <div style={{padding:"6px 12px",fontSize:9,color:"#2A4060",borderTop:"1px solid #0A1420",textAlign:"center",lineHeight:1.5}}>
+                  🟡 Top 4 qualify · Form = last 5 league games (oldest → newest) · Playoff knockouts: push rows into IPL_2026_PLAYOFFS with the 8th argument set to playoff so they don’t alter league P/W/L
+                </div>
               </div>
 
 
@@ -3806,12 +3860,12 @@ export default function App() {
 
             {/* Auto-calculate from match results */}
             {(() => {
-              // Build standings from all completed/abandoned matches
+              // League stage only — playoff knockouts do not change league P/W/L
               const standing = {};
               const ALL_TEAMS = ["RCB","MI","CSK","KKR","SRH","DC","RR","PBKS","LSG","GT"];
               ALL_TEAMS.forEach(t => { standing[t] = { played:0, won:0, lost:0, nr:0 }; });
 
-              completedMatches.forEach(match => {
+              completedLeagueMatches.forEach(match => {
                 const status = getEffectiveStatus(match);
                 const winner = getEffectiveWinner(match);
                 const isAbandoned = status === "abandoned";
@@ -3871,7 +3925,7 @@ export default function App() {
                   <div style={{marginBottom:10,display:"flex",gap:8,flexWrap:"wrap"}}>
                     <button onClick={syncTable}
                       style={{flex:1,minWidth:140,padding:"10px",borderRadius:10,border:"1px solid #22C55E55",background:"#22C55E11",color:"#22C55E",fontSize:12,fontWeight:700,cursor:"pointer"}}>
-                      🔄 Auto-calculate from {completedMatches.length} match results
+                      🔄 Auto-calculate from {completedLeagueMatches.length} league results
                     </button>
                     <button type="button" disabled={nrrFetchBusy} onClick={() => { void applyNrrFromWikipedia(); }}
                       style={{flex:1,minWidth:140,padding:"10px",borderRadius:10,border:"1px solid #60A5FA55",background:nrrFetchBusy?"#1A3050":"#60A5FA11",color:nrrFetchBusy?"#4A6080":"#93C5FD",fontSize:12,fontWeight:700,cursor:nrrFetchBusy?"default":"pointer",opacity:nrrFetchBusy?0.65:1}}>
