@@ -2017,6 +2017,35 @@ export default function App() {
       ranked: weeklyMiniRanked,
     };
 
+    /** Completed IST weeks before this Mon–Sun window — same points rules as mini league */
+    const pastWeekStarts = new Map();
+    for (const m of done) {
+      const b = istMondaySundayBoundsUtc(new Date(m.rawDate));
+      pastWeekStarts.set(b.startMs, b);
+    }
+    const weeklyMiniHistory = [...pastWeekStarts.values()]
+      .filter(w => w.startMs < wkStart)
+      .sort((a, b) => b.startMs - a.startMs)
+      .map(w => {
+        const wm = done.filter(x => {
+          const t = new Date(x.rawDate).getTime();
+          return t >= w.startMs && t <= w.endMs;
+        });
+        const pts = Object.fromEntries(PLAYERS.map(p => [p, 0]));
+        wm.forEach(x => applyPointsForMatch(pts, x));
+        const ranked = [...PLAYERS].sort((a, b) => pts[b] - pts[a] || a.localeCompare(b));
+        return {
+          label: w.label,
+          startMs: w.startMs,
+          matchesCount: wm.length,
+          podium: ranked.slice(0, 3).map((p, i) => ({
+            rank: i + 1,
+            player: p,
+            pts: pts[p],
+          })),
+        };
+      });
+
     // Favourite team = most bet on
     // Lucky team = most points earned from
     const enriched = {};
@@ -2055,7 +2084,7 @@ export default function App() {
       }
     }
 
-    return { enriched, h2h, total, weeklyInsights, weeklyMiniLeague };
+    return { enriched, h2h, total, weeklyInsights, weeklyMiniLeague, weeklyMiniHistory };
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -2948,7 +2977,7 @@ export default function App() {
 
         {/* ── STATS ── */}
         {!loading && tab === "stats" && (() => {
-          const { enriched, h2h, total, weeklyInsights, weeklyMiniLeague } = calcStats();
+          const { enriched, h2h, total, weeklyInsights, weeklyMiniLeague, weeklyMiniHistory } = calcStats();
 
           // Build points progression data from completed matches
           const progressionData = (() => {
@@ -3140,6 +3169,45 @@ export default function App() {
                   <div style={{ fontSize: 9, color: "#2A4060", textAlign: "center", marginTop: 6 }}>
                     {weeklyMiniLeague.matchesCount} match{weeklyMiniLeague.matchesCount === 1 ? "" : "es"} counted · Fixture date in this IST week
                   </div>
+                </div>
+              )}
+
+              <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 13, color: "#FFD700", fontWeight: 800, marginBottom: 4, letterSpacing: 0.5, marginTop: weeklyMiniLeague.matchesCount === 0 ? 0 : 4 }}>📜 PAST WEEKLY WINNERS</div>
+              <div style={{ fontSize: 11, color: "#4A6080", marginBottom: 10 }}>
+                Finished IST weeks (Mon–Sun) · Same scoring as mini league · Current week is above only
+              </div>
+              {weeklyMiniHistory.length === 0 ? (
+                <div style={{ ...S.card(), textAlign: "center", color: "#4A6080", padding: 18, marginBottom: 16 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700 }}>No completed weeks yet</div>
+                  <div style={{ fontSize: 10, marginTop: 4 }}>Once the calendar moves past this IST Monday, last week&apos;s podium will show here.</div>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+                  {weeklyMiniHistory.map(w => (
+                    <div key={w.startMs} style={{ ...S.card("#1A3050"), padding: "12px 14px", border: "1px solid #FFD70022" }}>
+                      <div style={{ fontSize: 10, color: "#4A6080", fontWeight: 700, marginBottom: 8 }}>{w.label}</div>
+                      <div style={{ fontSize: 9, color: "#2A4060", marginBottom: 8 }}>
+                        {w.matchesCount} match{w.matchesCount === 1 ? "" : "es"}
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {w.podium.map(slot => {
+                          const meta = PLAYER_META[slot.player];
+                          const medal = slot.rank === 1 ? "🥇" : slot.rank === 2 ? "🥈" : "🥉";
+                          return (
+                            <div key={slot.rank} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                                <span style={{ fontSize: 14 }}>{medal}</span>
+                                <span style={{ fontSize: 13, fontWeight: 800, color: meta?.color || "#E2E8F8" }}>
+                                  {meta?.emoji} {slot.player}
+                                </span>
+                              </div>
+                              <span style={{ fontSize: 12, fontWeight: 900, color: "#FFD700", flexShrink: 0 }}>{slot.pts} pts</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
 
