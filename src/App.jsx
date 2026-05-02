@@ -1127,6 +1127,7 @@ export default function App() {
   const [customAvatars, setCustomAvatars] = useState({}); // avatar overrides from Firebase
   const [avatarPicker, setAvatarPicker] = useState(null); // player name whose avatar is being edited
   const [toast, setToast] = useState(null);
+  const [scorecardModalMatchId, setScorecardModalMatchId] = useState(null);
   const [rankFlash, setRankFlash] = useState({});
   const prevRanksRef = useRef(null);
   const [confettiPieces, setConfettiPieces] = useState([]);
@@ -2827,28 +2828,22 @@ export default function App() {
                     <div style={{ fontSize: 9, fontWeight: 700, color: IPL_TEAMS[match.away]?.color || "#fff" }}>{match.away}</div>
                   </div>
                 </div>
-                {status === "completed" && winner && espnCompleted && (
-                  <div style={{ marginTop: 12, padding: "12px 10px", background: "#F8FAFC08", borderRadius: 10, border: "1px solid #243047" }}>
-                    {espnCompleted.metaLine?.trim() ? (
-                      <div style={{ fontSize: 9, color: "#94A3B8", marginBottom: 10, lineHeight: 1.45 }}>{espnCompleted.metaLine}</div>
-                    ) : null}
-                    {espnCompleted.rows.map(row => (
-                      <div key={`${match.id}-${row.abbr}-${row.main}`} style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: 1 }}>
-                          <TeamBadge short={row.abbr} size={26} />
-                          <div style={{ minWidth: 0 }}>
-                            <div style={{ fontSize: 11, fontWeight: row.winner ? 800 : 500, color: row.winner ? "#E2E8F8" : "#64748B" }}>{row.name}</div>
-                            {row.extra ? (
-                              <div style={{ fontSize: 9, fontWeight: row.winner ? 600 : 400, color: row.winner ? "#94A3B8" : "#64748B", marginTop: 2 }}>{row.extra}</div>
-                            ) : null}
-                          </div>
-                        </div>
-                        <div style={{ fontSize: 11, fontWeight: row.winner ? 800 : 500, color: row.winner ? "#E2E8F8" : "#64748B", flexShrink: 0, textAlign: "right" }}>{row.main}</div>
-                      </div>
-                    ))}
-                    {espnCompleted.resultLine ? (
-                      <div style={{ fontSize: 11, fontWeight: 800, color: "#E2E8F8", marginTop: 6, paddingTop: 8, borderTop: "1px solid #1E293B" }}>{espnCompleted.resultLine}</div>
-                    ) : null}
+                {status === "completed" && winner && (
+                  <div style={{ marginTop: 10 }}>
+                    <button
+                      onClick={() => setScorecardModalMatchId(match.id)}
+                      disabled={!espnCompleted}
+                      style={{
+                        ...S.btn(espnCompleted ? "#1E3A5F" : "#0A1420", espnCompleted ? "#93C5FD" : "#4A6080"),
+                        width: "100%",
+                        fontSize: 11,
+                        border: "1px solid #60A5FA44",
+                        opacity: espnCompleted ? 1 : 0.6,
+                        cursor: espnCompleted ? "pointer" : "not-allowed",
+                      }}
+                    >
+                      {espnCompleted ? "📄 View ESPN Scorecard" : "📄 Scorecard loading..."}
+                    </button>
                   </div>
                 )}
                 {(status === "live" || status === "completed") && (
@@ -2967,28 +2962,22 @@ export default function App() {
                     </div>
                     <TeamBadge short={match.away} size={32} />
                   </div>
-                  {!isAbandoned && winner && completedEspnByMatch[match.id] && (
-                    <div style={{ marginBottom: 12, padding: "12px 10px", background: "#F8FAFC08", borderRadius: 10, border: "1px solid #243047" }}>
-                      {completedEspnByMatch[match.id].metaLine?.trim() ? (
-                        <div style={{ fontSize: 9, color: "#94A3B8", marginBottom: 10, lineHeight: 1.45 }}>{completedEspnByMatch[match.id].metaLine}</div>
-                      ) : null}
-                      {completedEspnByMatch[match.id].rows.map(row => (
-                        <div key={`${match.id}-h-${row.abbr}-${row.main}`} style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: 1 }}>
-                            <TeamBadge short={row.abbr} size={26} />
-                            <div style={{ minWidth: 0 }}>
-                              <div style={{ fontSize: 11, fontWeight: row.winner ? 800 : 500, color: row.winner ? "#E2E8F8" : "#64748B" }}>{row.name}</div>
-                              {row.extra ? (
-                                <div style={{ fontSize: 9, fontWeight: row.winner ? 600 : 400, color: row.winner ? "#94A3B8" : "#64748B", marginTop: 2 }}>{row.extra}</div>
-                              ) : null}
-                            </div>
-                          </div>
-                          <div style={{ fontSize: 11, fontWeight: row.winner ? 800 : 500, color: row.winner ? "#E2E8F8" : "#64748B", flexShrink: 0, textAlign: "right" }}>{row.main}</div>
-                        </div>
-                      ))}
-                      {completedEspnByMatch[match.id].resultLine ? (
-                        <div style={{ fontSize: 11, fontWeight: 800, color: "#E2E8F8", marginTop: 6, paddingTop: 8, borderTop: "1px solid #1E293B" }}>{completedEspnByMatch[match.id].resultLine}</div>
-                      ) : null}
+                  {!isAbandoned && winner && (
+                    <div style={{ marginBottom: 12 }}>
+                      <button
+                        onClick={() => setScorecardModalMatchId(match.id)}
+                        disabled={!completedEspnByMatch[match.id]}
+                        style={{
+                          ...S.btn(completedEspnByMatch[match.id] ? "#1E3A5F" : "#0A1420", completedEspnByMatch[match.id] ? "#93C5FD" : "#4A6080"),
+                          width: "100%",
+                          fontSize: 11,
+                          border: "1px solid #60A5FA44",
+                          opacity: completedEspnByMatch[match.id] ? 1 : 0.6,
+                          cursor: completedEspnByMatch[match.id] ? "pointer" : "not-allowed",
+                        }}
+                      >
+                        {completedEspnByMatch[match.id] ? "📄 View ESPN Scorecard" : "📄 Scorecard loading..."}
+                      </button>
                     </div>
                   )}
                   <div style={{ display: "flex", gap: 8 }}>
@@ -4500,6 +4489,70 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {/* ── ESPN SCORECARD MODAL (PHASE 1) ── */}
+      {scorecardModalMatchId && (() => {
+        const m = matches.find(x => x.id === scorecardModalMatchId);
+        const sc = completedEspnByMatch[scorecardModalMatchId];
+        if (!m) return null;
+        return (
+          <div
+            style={{ position: "fixed", inset: 0, background: "#000000CC", zIndex: 9998, display: "flex", alignItems: "flex-end", justifyContent: "center", padding: 10 }}
+            onClick={() => setScorecardModalMatchId(null)}
+          >
+            <div
+              style={{ background: "#0D1828", border: "1px solid #1A3050", borderRadius: "18px 18px 0 0", width: "100%", maxWidth: 640, maxHeight: "85vh", overflowY: "auto", padding: 14 }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
+                <div>
+                  <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 14, color: "#93C5FD", fontWeight: 800 }}>📄 ESPN SCORECARD</div>
+                  <div style={{ fontSize: 11, color: "#E2E8F8", marginTop: 2, fontWeight: 700 }}>{m.home} vs {m.away}</div>
+                  <div style={{ fontSize: 9, color: "#4A6080", marginTop: 2 }}>{fmtMatchDate(m.rawDate)} · {m.venue?.split(",")[0]}</div>
+                </div>
+                <button
+                  onClick={() => setScorecardModalMatchId(null)}
+                  style={{ width: 30, height: 30, borderRadius: "50%", border: "1px solid #1A3050", background: "#0A1420", color: "#94A3B8", cursor: "pointer", fontSize: 16 }}
+                  aria-label="Close scorecard"
+                >
+                  ×
+                </button>
+              </div>
+
+              {!sc ? (
+                <div style={{ ...S.card(), marginBottom: 0, textAlign: "center", color: "#4A6080", padding: 20 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>Scorecard not available yet</div>
+                  <div style={{ fontSize: 10, marginTop: 6 }}>Set ESPN game ID in Admin (or wait for auto-match) and try again.</div>
+                </div>
+              ) : (
+                <div style={{ marginBottom: 4, padding: "12px 10px", background: "#F8FAFC08", borderRadius: 10, border: "1px solid #243047" }}>
+                  {sc.metaLine?.trim() ? (
+                    <div style={{ fontSize: 9, color: "#94A3B8", marginBottom: 10, lineHeight: 1.45 }}>{sc.metaLine}</div>
+                  ) : null}
+                  {sc.rows.map(row => (
+                    <div key={`${scorecardModalMatchId}-modal-${row.abbr}-${row.main}`} style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: 1 }}>
+                        <TeamBadge short={row.abbr} size={26} />
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 11, fontWeight: row.winner ? 800 : 500, color: row.winner ? "#E2E8F8" : "#64748B" }}>{row.name}</div>
+                          {row.extra ? (
+                            <div style={{ fontSize: 9, fontWeight: row.winner ? 600 : 400, color: row.winner ? "#94A3B8" : "#64748B", marginTop: 2 }}>{row.extra}</div>
+                          ) : null}
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 11, fontWeight: row.winner ? 800 : 500, color: row.winner ? "#E2E8F8" : "#64748B", flexShrink: 0, textAlign: "right" }}>{row.main}</div>
+                    </div>
+                  ))}
+                  {sc.resultLine ? (
+                    <div style={{ fontSize: 11, fontWeight: 800, color: "#E2E8F8", marginTop: 6, paddingTop: 8, borderTop: "1px solid #1E293B" }}>{sc.resultLine}</div>
+                  ) : null}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ── AVATAR PICKER MODAL ── */}
       {avatarPicker && (() => {
         const p = avatarPicker;
