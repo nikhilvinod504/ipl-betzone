@@ -556,25 +556,52 @@ function buildWikiTeamTitleLookup() {
 }
 
 function formatNrrSigned(raw) {
-  const n = parseFloat(String(raw).replace(/^\+/, "").trim());
+  // Wikipedia uses Unicode minus (U+2212); parseFloat would return NaN.
+  const n = parseFloat(
+    String(raw)
+      .replace(/\u2212/g, "-")
+      .replace(/\u2013/g, "-")
+      .replace(/^\+/, "")
+      .trim()
+  );
   if (Number.isNaN(n)) return null;
   const sign = n >= 0 ? "+" : "";
   return sign + n.toFixed(3);
 }
 
+function wikiHeaderNrrIndex(headerRow) {
+  if (!headerRow) return -1;
+  const ths = [...headerRow.querySelectorAll("th")];
+  const labels = ths.map(th => {
+    const t = th.textContent.replace(/\s+/g, " ").trim().toLowerCase();
+    const href = th.querySelector("a")?.getAttribute("href") || "";
+    return { t, href };
+  });
+  return labels.findIndex(({ t, href }) =>
+    t === "nrr" ||
+    t.includes("nrr") ||
+    t.includes("net run rate") ||
+    href.includes("Net_run_rate")
+  );
+}
+
 function parseNrrMapFromWikipediaPointsHtml(html) {
   const titleToCode = buildWikiTeamTitleLookup();
   const doc = new DOMParser().parseFromString(html, "text/html");
-  const tables = [...doc.querySelectorAll("table.wikitable")];
+  const tables = [...doc.querySelectorAll("table.wikitable, table[class*='wikitable']")];
 
   for (const table of tables) {
-    const headerRow = table.querySelector("tr");
-    if (!headerRow) continue;
-    const headers = [...headerRow.querySelectorAll("th")].map(th =>
-      th.textContent.replace(/\s+/g, " ").trim().toLowerCase()
-    );
-    const nrrIdx = headers.findIndex(h => h === "nrr" || h.includes("nrr"));
-    if (nrrIdx === -1) continue;
+    let headerRow = null;
+    let nrrIdx = -1;
+    for (const tr of table.querySelectorAll("tr")) {
+      const idx = wikiHeaderNrrIndex(tr);
+      if (idx !== -1) {
+        headerRow = tr;
+        nrrIdx = idx;
+        break;
+      }
+    }
+    if (!headerRow || nrrIdx === -1) continue;
 
     const out = {};
     const rows = [...table.querySelectorAll("tbody tr")];
@@ -583,16 +610,24 @@ function parseNrrMapFromWikipediaPointsHtml(html) {
       if (!teamTh) continue;
       const link = teamTh.querySelector("a");
       const wikiTitle = (link?.getAttribute("title") || link?.textContent || teamTh.textContent || "").trim();
-      const code = titleToCode[normalizeWikiTeamTitle(wikiTitle)];
-      if (!code) continue;
+      if (!wikiTitle || /^pos\.?$/i.test(wikiTitle)) continue;
 
       const cells = [...row.children];
       const nrrCell = cells[nrrIdx];
       if (!nrrCell) continue;
       const formatted = formatNrrSigned(nrrCell.textContent);
-      if (formatted) out[code] = formatted;
+      if (!formatted) continue;
+
+      const code = titleToCode[normalizeWikiTeamTitle(wikiTitle)];
+      if (code) {
+        out[code] = formatted;
+        continue;
+      }
+      const fallbackCode = teamShort(wikiTitle);
+      if (fallbackCode) out[fallbackCode] = formatted;
     }
-    if (Object.keys(out).length >= 8) return out;
+    const n = Object.keys(out).length;
+    if (n >= 8) return out;
   }
   return {};
 }
@@ -615,7 +650,8 @@ async function fetchIplNrrMapFromWikipedia() {
         errors.push(`${year}: ${data.error.info || "wiki error"}`);
         continue;
       }
-      const html = data?.parse?.text;
+      const rawText = data?.parse?.text;
+      const html = typeof rawText === "string" ? rawText : (rawText && typeof rawText === "object" ? rawText["*"] : "") || "";
       if (!html) {
         errors.push(`${year}: empty response`);
         continue;
