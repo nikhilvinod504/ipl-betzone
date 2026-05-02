@@ -1767,11 +1767,11 @@ export default function App() {
   const completedMatches = matches.filter(m => getEffectiveStatus(m) === "completed" || getEffectiveStatus(m) === "abandoned");
   const completedLeagueMatches = completedMatches.filter(isLeagueStageMatch);
 
-  /** Last 5 league results for a franchise (newest→oldest, left→right): W / L / wash — playoffs excluded */
-  function getIplTeamFormLast5(teamCode) {
+  /** Last N league results for a franchise (newest→oldest, left→right): W / L / wash — playoffs excluded */
+  function getIplTeamFormLastN(teamCode, n) {
     const involved = completedLeagueMatches.filter(m => m.home === teamCode || m.away === teamCode)
       .sort((a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime())
-      .slice(0, 5);
+      .slice(0, n);
     const cells = involved.map(match => {
       const status = getEffectiveStatus(match);
       if (status === "abandoned") return "wash";
@@ -1779,8 +1779,13 @@ export default function App() {
       if (!w) return "skip";
       return w === teamCode ? "W" : "L";
     });
-    while (cells.length < 5) cells.push("skip");
+    while (cells.length < n) cells.push("skip");
     return cells;
+  }
+
+  /** Last 5 league results (used outside IPL points table) */
+  function getIplTeamFormLast5(teamCode) {
+    return getIplTeamFormLastN(teamCode, 5);
   }
 
   /** Last 5 completed fixtures (newest→oldest, left→right): W/L on winner pick, wash, or skip if no pick */
@@ -3512,22 +3517,22 @@ export default function App() {
               <div style={{...S.card(),padding:0,overflow:"hidden",marginBottom:16}}>
                 <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
                   {/* Fixed px columns only — avoid fit-content/minmax(fit) here; some mobile engines invalidate the whole grid → one column stack */}
-                  <div style={{ minWidth: 460 }}>
-                    <div style={{background:"#0A1420",padding:"8px 10px",display:"grid",gridTemplateColumns:"22px 108px 24px 24px 24px 22px 54px 30px 96px",gap:4,fontSize:9,fontWeight:700,color:"#4A6080",letterSpacing:0.5,alignItems:"center"}}>
+                  <div style={{ minWidth: 458 }}>
+                    <div style={{background:"#0A1420",padding:"8px 10px",display:"grid",gridTemplateColumns:"16px 72px 22px 22px 22px 20px 46px 28px 168px",gap:2,fontSize:9,fontWeight:700,color:"#4A6080",letterSpacing:0.5,alignItems:"center"}}>
                       <div>#</div><div>TEAM</div><div style={{textAlign:"center"}}>P</div><div style={{textAlign:"center"}}>W</div><div style={{textAlign:"center"}}>L</div><div style={{textAlign:"center",color:"#60A5FA"}}>NR</div><div style={{textAlign:"center"}}>NRR</div><div style={{textAlign:"center"}}>PTS</div><div style={{textAlign:"center"}}>FORM</div>
                     </div>
                     {[...iplTable].sort((a,b)=>b.pts-a.pts||parseFloat(b.nrr)-parseFloat(a.nrr)).map((row,i)=>{
                       const t = IPL_TEAMS[row.team];
                       const isTop4 = i < 4;
-                      const formCells = getIplTeamFormLast5(row.team);
+                      const formCells = getIplTeamFormLastN(row.team, 10);
                       return (
-                        <div key={row.team} style={{padding:"8px 10px",display:"grid",gridTemplateColumns:"22px 108px 24px 24px 24px 22px 54px 30px 96px",gap:4,alignItems:"center",borderTop:"1px solid #0A1420",background:isTop4?"#FFD70008":"transparent"}}>
-                          <div style={{fontSize:11,fontWeight:800,color:isTop4?"#FFD700":"#4A6080"}}>{i+1}</div>
-                          <div style={{display:"flex",alignItems:"center",gap:6,minWidth:0,overflow:"hidden"}}>
-                            <div style={{width:22,height:22,borderRadius:"50%",background:t?.color||"#1A3050",border:`1px solid ${t?.accent||"#2A4060"}`,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                        <div key={row.team} style={{padding:"8px 10px",display:"grid",gridTemplateColumns:"16px 72px 22px 22px 22px 20px 46px 28px 168px",gap:2,alignItems:"center",borderTop:"1px solid #0A1420",background:isTop4?"#FFD70008":"transparent"}}>
+                          <div style={{fontSize:11,fontWeight:800,color:isTop4?"#FFD700":"#4A6080",textAlign:"right",paddingRight:1}}>{i+1}</div>
+                          <div style={{display:"flex",alignItems:"center",gap:4,minWidth:0,overflow:"hidden"}}>
+                            <div style={{width:20,height:20,borderRadius:"50%",background:t?.color||"#1A3050",border:`1px solid ${t?.accent||"#2A4060"}`,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                               {t?.logo ? <img src={t.logo} style={{width:"85%",height:"85%",objectFit:"contain"}} alt={row.team}/> : <span style={{fontSize:7,fontWeight:800,color:t?.accent}}>{row.team}</span>}
                             </div>
-                            <span style={{fontSize:11,fontWeight:700,color:"#E2E8F8",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{row.team}</span>
+                            <span style={{fontSize:10,fontWeight:700,color:"#E2E8F8",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{row.team}</span>
                           </div>
                           <div style={{fontSize:11,color:"#7A90B0",textAlign:"center"}}>{row.played}</div>
                           <div style={{fontSize:11,color:"#22C55E",textAlign:"center",fontWeight:700}}>{row.won}</div>
@@ -3535,17 +3540,17 @@ export default function App() {
                           <div style={{fontSize:11,fontWeight:800,color:"#60A5FA",textAlign:"center"}}>{row.nr||0}</div>
                           <div style={{fontSize:10,color:"#7A90B0",textAlign:"center"}}>{row.nrr}</div>
                           <div style={{fontSize:12,fontWeight:800,color:"#FFD700",textAlign:"center"}}>{(row.won*2)+(row.nr||0)}</div>
-                          <div style={{ display:"flex", alignItems:"center", justifyContent:"flex-end", gap:3, flexWrap:"nowrap", paddingLeft: 4 }}>
+                          <div style={{ display:"flex", alignItems:"center", justifyContent:"flex-end", gap:2, flexWrap:"nowrap", paddingLeft: 2, minWidth: 0 }}>
                             {formCells.map((cell, fi) => (
                               <span
                                 key={fi}
                                 title={cell === "W" ? "Win" : cell === "L" ? "Loss" : cell === "wash" ? "No result" : "—"}
                                 style={{
-                                  fontSize: 8,
+                                  fontSize: 7,
                                   fontWeight: 800,
-                                  width: 16,
-                                  height: 16,
-                                  borderRadius: 4,
+                                  width: 14,
+                                  height: 14,
+                                  borderRadius: 3,
                                   display: "inline-flex",
                                   alignItems: "center",
                                   justifyContent: "center",
@@ -3566,7 +3571,7 @@ export default function App() {
                   </div>
                 </div>
                 <div style={{padding:"6px 12px",fontSize:9,color:"#2A4060",borderTop:"1px solid #0A1420",textAlign:"center",lineHeight:1.5}}>
-                  🟡 Top 4 qualify · Form = last 5 league games · Playoffs auto-fill from table after {IPL_LEAGUE_MATCH_COUNT} league results · Swipe for FORM
+                  🟡 Top 4 qualify · Form = last 10 league games (newest first) · Playoffs auto-fill from table after {IPL_LEAGUE_MATCH_COUNT} league results · Swipe for FORM
                 </div>
               </div>
 
