@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useMemo } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { initializeApp } from "firebase/app";
 import { getDatabase, ref, onValue, set, get, update } from "firebase/database";
@@ -16,6 +16,8 @@ const firebaseConfig = {
 
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getDatabase(firebaseApp);
+
+const CHAT_SCROLL_TOP_KEY = "betzone_chatScrollTop";
 
 // ─── CricketData API ───────────────────────────────────────────────
 // CricketData API removed — all results managed manually via Admin panel
@@ -912,6 +914,10 @@ export default function App() {
   const [reactionPicker, setReactionPicker] = useState(null); // msgId showing emoji picker
   const [longPressMsg, setLongPressMsg] = useState(null); // msgId showing context menu
   const longPressTimer = useRef(null);
+  const chatScrollRef = useRef(null);
+  const chatScrollSaveTimer = useRef(null);
+  const prevTabRef = useRef(tab);
+  const pendingChatScrollRestore = useRef(false);
   const [lastSeenChat, setLastSeenChat] = useState(() => {
     // Persist last seen timestamp in localStorage per device
     try { return parseInt(localStorage.getItem("betzone_lastSeenChat") || "0"); } catch { return 0; }
@@ -1003,6 +1009,48 @@ export default function App() {
       try { localStorage.setItem("betzone_lastSeenChat", now.toString()); } catch {}
     }
   }, [selectedPlayer, tab]);
+
+  // Persist chat scroll position per device (localStorage); restore when opening Chat tab
+  useLayoutEffect(() => {
+    const entered = prevTabRef.current !== "chat" && tab === "chat";
+    prevTabRef.current = tab;
+    if (entered) pendingChatScrollRestore.current = true;
+    if (!pendingChatScrollRestore.current || tab !== "chat" || !chatScrollRef.current || chatMessages.length === 0) return;
+    pendingChatScrollRestore.current = false;
+    const el = chatScrollRef.current;
+    const apply = () => {
+      let raw;
+      try { raw = localStorage.getItem(CHAT_SCROLL_TOP_KEY); } catch { raw = null; }
+      const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight);
+      if (raw == null || raw === "") {
+        el.scrollTop = maxScroll;
+        return;
+      }
+      const saved = parseInt(raw, 10);
+      el.scrollTop = Number.isFinite(saved) ? Math.min(Math.max(0, saved), maxScroll) : maxScroll;
+    };
+    apply();
+    requestAnimationFrame(apply);
+  }, [tab, chatMessages]);
+
+  useEffect(() => {
+    if (tab !== "chat") return;
+    return () => {
+      const el = chatScrollRef.current;
+      if (!el) return;
+      try { localStorage.setItem(CHAT_SCROLL_TOP_KEY, String(el.scrollTop)); } catch {}
+    };
+  }, [tab]);
+
+  function schedulePersistChatScroll() {
+    if (tab !== "chat" || !chatScrollRef.current) return;
+    clearTimeout(chatScrollSaveTimer.current);
+    chatScrollSaveTimer.current = setTimeout(() => {
+      const el = chatScrollRef.current;
+      if (!el) return;
+      try { localStorage.setItem(CHAT_SCROLL_TOP_KEY, String(el.scrollTop)); } catch {}
+    }, 200);
+  }
 
   // Auto-detect chat sender from device profile on mount
   useEffect(() => {
@@ -1704,7 +1752,7 @@ export default function App() {
       }
     }
 
-    // Weekly insights (MVP): Player of week, biggest climber, toss master
+    // Last 7 days (rolling) insights: top scorer, biggest climber, toss rate — not the Mon–Sun mini league
     const weekPts = Object.fromEntries(PLAYERS.map(p => [p, 0]));
     const weekToss = Object.fromEntries(PLAYERS.map(p => [p, { correct: 0, total: 0 }]));
     const beforeWeekPts = Object.fromEntries(PLAYERS.map(p => [p, 0]));
@@ -2799,21 +2847,21 @@ export default function App() {
                 </div>
               )}
 
-              {/* Weekly Insights (MVP) */}
-              <div style={{fontFamily:"'Syne',sans-serif",fontSize:13,color:"#FFD700",fontWeight:800,marginBottom:4,letterSpacing:0.5}}>🗓 WEEKLY INSIGHTS</div>
+              {/* Last 7 days (rolling window — distinct from Mon–Sun weekly mini league) */}
+              <div style={{fontFamily:"'Syne',sans-serif",fontSize:13,color:"#FFD700",fontWeight:800,marginBottom:4,letterSpacing:0.5}}>🗓 LAST 7 DAYS INSIGHTS</div>
               <div style={{ fontSize:11, color:"#4A6080", marginBottom:10 }}>
-                Last 7 days · {weeklyInsights.matchesCount} completed match{weeklyInsights.matchesCount === 1 ? "" : "es"}
+                Rolling 7-day window · {weeklyInsights.matchesCount} completed match{weeklyInsights.matchesCount === 1 ? "" : "es"}
               </div>
               {weeklyInsights.matchesCount === 0 ? (
                 <div style={{ ...S.card(), textAlign:"center", color:"#4A6080", padding:24, marginBottom:16 }}>
                   <div style={{ fontSize:26, marginBottom:6 }}>🗓</div>
-                  <div style={{ fontSize:12, fontWeight:700 }}>No weekly insights yet</div>
-                  <div style={{ fontSize:10, marginTop:4 }}>Insights appear after completed matches in the last 7 days.</div>
+                  <div style={{ fontSize:12, fontWeight:700 }}>No last 7 days insights yet</div>
+                  <div style={{ fontSize:10, marginTop:4 }}>These appear once there are completed matches in the last 7 days.</div>
                 </div>
               ) : (
                 <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:10, marginBottom:16 }}>
                   <div style={{ ...S.card(PLAYER_META[weeklyInsights.playerOfWeek.player]?.color + "55"), marginBottom:0, padding:12 }}>
-                    <div style={{ fontSize:10, color:"#4A6080", fontWeight:700, marginBottom:6 }}>🔥 PLAYER OF THE WEEK</div>
+                    <div style={{ fontSize:10, color:"#4A6080", fontWeight:700, marginBottom:6 }}>🔥 MOST POINTS (7 DAYS)</div>
                     <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                       <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, color:PLAYER_META[weeklyInsights.playerOfWeek.player]?.color }}>
                         {PLAYER_META[weeklyInsights.playerOfWeek.player]?.emoji} {weeklyInsights.playerOfWeek.player}
@@ -2823,7 +2871,7 @@ export default function App() {
                   </div>
 
                   <div style={{ ...S.card("#60A5FA55"), marginBottom:0, padding:12 }}>
-                    <div style={{ fontSize:10, color:"#4A6080", fontWeight:700, marginBottom:6 }}>📈 BIGGEST CLIMBER</div>
+                    <div style={{ fontSize:10, color:"#4A6080", fontWeight:700, marginBottom:6 }}>📈 BIGGEST CLIMBER (7 DAYS)</div>
                     <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                       <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, color:PLAYER_META[weeklyInsights.biggestClimber.player]?.color }}>
                         {PLAYER_META[weeklyInsights.biggestClimber.player]?.emoji} {weeklyInsights.biggestClimber.player}
@@ -2831,13 +2879,13 @@ export default function App() {
                       <div style={{ fontSize:12, color:"#93C5FD", fontWeight:800 }}>
                         {weeklyInsights.biggestClimber.climbed > 0
                           ? `#${weeklyInsights.biggestClimber.from} → #${weeklyInsights.biggestClimber.to}`
-                          : "No rank jump this week"}
+                          : "No rank jump in last 7 days"}
                       </div>
                     </div>
                   </div>
 
                   <div style={{ ...S.card("#FFD70055"), marginBottom:0, padding:12 }}>
-                    <div style={{ fontSize:10, color:"#4A6080", fontWeight:700, marginBottom:6 }}>🪙 TOSS MASTER</div>
+                    <div style={{ fontSize:10, color:"#4A6080", fontWeight:700, marginBottom:6 }}>🪙 TOSS MASTER (7 DAYS)</div>
                     <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                       <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, color:PLAYER_META[weeklyInsights.tossMaster.player]?.color }}>
                         {PLAYER_META[weeklyInsights.tossMaster.player]?.emoji} {weeklyInsights.tossMaster.player}
@@ -3263,6 +3311,12 @@ export default function App() {
             const now2 = Date.now();
             setLastSeenChat(now2);
             try { localStorage.setItem("betzone_lastSeenChat", now2.toString()); } catch {}
+            requestAnimationFrame(() => {
+              const el = chatScrollRef.current;
+              if (!el) return;
+              el.scrollTop = Math.max(0, el.scrollHeight - el.clientHeight);
+              try { localStorage.setItem(CHAT_SCROLL_TOP_KEY, String(el.scrollTop)); } catch {}
+            });
           }
 
           function deleteMessage(msgId) {
@@ -3340,8 +3394,8 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Messages */}
-              <div style={{ flex:1, overflowY:"auto", marginBottom:12 }} onClick={() => setLongPressMsg(null)}>
+              {/* Messages — scroll position persisted per device (betzone_chatScrollTop) */}
+              <div ref={chatScrollRef} style={{ flex:1, overflowY:"auto", marginBottom:12 }} onScroll={schedulePersistChatScroll} onClick={() => setLongPressMsg(null)}>
                 {chatMessages.length === 0 ? (
                   <div style={{ textAlign:"center", padding:40, color:"#2A4060" }}>
                     <div style={{ fontSize:40, marginBottom:10 }}>💬</div>
