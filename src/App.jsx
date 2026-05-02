@@ -2978,8 +2978,9 @@ export default function App() {
               <div style={{fontFamily:"'Syne',sans-serif",fontSize:13,color:"#FFD700",fontWeight:800,marginBottom:10,letterSpacing:0.5}}>🏏 IPL 2026 POINTS TABLE</div>
               <div style={{...S.card(),padding:0,overflow:"hidden",marginBottom:16}}>
                 <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-                  <div style={{ width: "max-content" }}>
-                    <div style={{background:"#0A1420",padding:"8px 10px",display:"grid",gridTemplateColumns:"22px minmax(72px, fit-content(118px)) 22px 22px 22px 20px 52px 28px 96px",gap:4,fontSize:9,fontWeight:700,color:"#4A6080",letterSpacing:0.5,alignItems:"center"}}>
+                  {/* Fixed px columns only — avoid fit-content/minmax(fit) here; some mobile engines invalidate the whole grid → one column stack */}
+                  <div style={{ minWidth: 460 }}>
+                    <div style={{background:"#0A1420",padding:"8px 10px",display:"grid",gridTemplateColumns:"22px 108px 24px 24px 24px 22px 54px 30px 96px",gap:4,fontSize:9,fontWeight:700,color:"#4A6080",letterSpacing:0.5,alignItems:"center"}}>
                       <div>#</div><div>TEAM</div><div style={{textAlign:"center"}}>P</div><div style={{textAlign:"center"}}>W</div><div style={{textAlign:"center"}}>L</div><div style={{textAlign:"center",color:"#60A5FA"}}>NR</div><div style={{textAlign:"center"}}>NRR</div><div style={{textAlign:"center"}}>PTS</div><div style={{textAlign:"center"}}>FORM</div>
                     </div>
                     {[...iplTable].sort((a,b)=>b.pts-a.pts||parseFloat(b.nrr)-parseFloat(a.nrr)).map((row,i)=>{
@@ -2987,7 +2988,7 @@ export default function App() {
                       const isTop4 = i < 4;
                       const formCells = getIplTeamFormLast5(row.team);
                       return (
-                        <div key={row.team} style={{padding:"8px 10px",display:"grid",gridTemplateColumns:"22px minmax(72px, fit-content(118px)) 22px 22px 22px 20px 52px 28px 96px",gap:4,alignItems:"center",borderTop:"1px solid #0A1420",background:isTop4?"#FFD70008":"transparent"}}>
+                        <div key={row.team} style={{padding:"8px 10px",display:"grid",gridTemplateColumns:"22px 108px 24px 24px 24px 22px 54px 30px 96px",gap:4,alignItems:"center",borderTop:"1px solid #0A1420",background:isTop4?"#FFD70008":"transparent"}}>
                           <div style={{fontSize:11,fontWeight:800,color:isTop4?"#FFD700":"#4A6080"}}>{i+1}</div>
                           <div style={{display:"flex",alignItems:"center",gap:6,minWidth:0,overflow:"hidden"}}>
                             <div style={{width:22,height:22,borderRadius:"50%",background:t?.color||"#1A3050",border:`1px solid ${t?.accent||"#2A4060"}`,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
