@@ -19,6 +19,125 @@ const db = getDatabase(firebaseApp);
 
 const CHAT_SCROLL_TOP_KEY = "betzone_chatScrollTop";
 
+/** League matches in schedule — must match length of getLeagueSchedule() */
+const IPL_LEAGUE_MATCH_COUNT = 70;
+
+/** Knockout slot dates/venues (edit when BCCI confirms) — teams filled automatically */
+const IPL_2026_PLAYOFF_SCHEDULE = {
+  q1:    { rawDate: "2026-05-27T14:00:00Z", date: "27 May", time: "7:30 PM", venue: "Narendra Modi Stadium, Ahmedabad" },
+  elim:  { rawDate: "2026-05-28T14:00:00Z", date: "28 May", time: "7:30 PM", venue: "Narendra Modi Stadium, Ahmedabad" },
+  q2:    { rawDate: "2026-05-30T14:00:00Z", date: "30 May", time: "7:30 PM", venue: "Narendra Modi Stadium, Ahmedabad" },
+  final: { rawDate: "2026-06-01T14:00:00Z", date: "01 Jun", time: "7:30 PM", venue: "Narendra Modi Stadium, Ahmedabad" },
+};
+
+function fbKeyStatic(id) {
+  return id.replace(/[^a-zA-Z0-9_]/g, "_");
+}
+
+/** IPL format: Q1 = 1v2, Elim = 3v4; Q2 = loser Q1 vs winner Elim; Final = winner Q1 vs winner Q2 */
+function buildIplPlayoffFixtures(iplTable, manualResults, leagueCompletedCount) {
+  if (leagueCompletedCount < IPL_LEAGUE_MATCH_COUNT) return [];
+
+  const sorted = [...iplTable].sort((a, b) => b.pts - a.pts || parseFloat(b.nrr) - parseFloat(a.nrr));
+  const top = sorted.slice(0, 4).map(r => r.team);
+  if (top.length < 4 || top.some(t => !t)) return [];
+
+  const [t1, t2, t3, t4] = top;
+  const key = fbKeyStatic;
+  const out = [];
+
+  const pm = (id, home, away, schedKey, playoffRound) => {
+    const meta = IPL_2026_PLAYOFF_SCHEDULE[schedKey];
+    return {
+      id, home, away,
+      playoffAutoHome: home,
+      playoffAutoAway: away,
+      rawDate: meta.rawDate, date: meta.date, time: meta.time, venue: meta.venue,
+      status: "upcoming", apiWinner: null, stage: "playoff", playoffRound,
+    };
+  };
+
+  out.push(pm("ipl26-po-q1", t1, t2, "q1", "Qualifier 1"));
+  out.push(pm("ipl26-po-elim", t3, t4, "elim", "Eliminator"));
+
+  const wQ1 = manualResults[key("ipl26-po-q1")]?.winner;
+  const wElim = manualResults[key("ipl26-po-elim")]?.winner;
+  if (wQ1 && wElim) {
+    const loserQ1 = wQ1 === t1 ? t2 : t1;
+    out.push(pm("ipl26-po-q2", loserQ1, wElim, "q2", "Qualifier 2"));
+  }
+
+  const wQ2 = manualResults[key("ipl26-po-q2")]?.winner;
+  if (wQ1 && wQ2) {
+    out.push(pm("ipl26-po-final", wQ1, wQ2, "final", "Final"));
+  }
+
+  return out;
+}
+
+/** Apply Admin playoff overrides from Firebase; playoffBettingOpen === true only when confirmed */
+function mergePlayoffAdminRows(playoffRows, playoffAdmin) {
+  return playoffRows.map(m => {
+    const k = fbKeyStatic(m.id);
+    const o = playoffAdmin[k] || {};
+    const autoH = m.playoffAutoHome ?? m.home;
+    const autoA = m.playoffAutoAway ?? m.away;
+    const playoffDefaultVenue = m.venue;
+    const playoffDefaultRawDate = m.rawDate;
+
+    let home = autoH;
+    let away = autoA;
+    if (o.home != null && String(o.home).trim() !== "") home = String(o.home).trim();
+    if (o.away != null && String(o.away).trim() !== "") away = String(o.away).trim();
+
+    let rawDate = m.rawDate;
+    let venue = m.venue;
+    let date = m.date;
+    let time = m.time;
+
+    if (o.rawDate != null && String(o.rawDate).trim() !== "") {
+      rawDate = String(o.rawDate).trim();
+      const d = new Date(rawDate);
+      if (!Number.isNaN(d.getTime())) {
+        date = d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+        time = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+      }
+    }
+    if (o.venue != null && String(o.venue).trim() !== "") venue = String(o.venue).trim();
+    if (o.date != null && String(o.date).trim() !== "") date = String(o.date).trim();
+    if (o.time != null && String(o.time).trim() !== "") time = String(o.time).trim();
+
+    return {
+      ...m,
+      home,
+      away,
+      rawDate,
+      date,
+      time,
+      venue,
+      playoffAutoHome: autoH,
+      playoffAutoAway: autoA,
+      playoffDefaultVenue,
+      playoffDefaultRawDate,
+      playoffBettingOpen: o.confirmed === true,
+    };
+  });
+}
+
+function isoToDatetimeLocal(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function datetimeLocalToIso(s) {
+  if (!s || !String(s).trim()) return "";
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? "" : d.toISOString();
+}
+
 // ─── CricketData API ───────────────────────────────────────────────
 // CricketData API removed — all results managed manually via Admin panel
 
@@ -893,6 +1012,88 @@ function Toast({ msg, type }) {
   );
 }
 
+function getLeagueSchedule() {
+  const m = (id, home, away, rawDate, date, time, venue, stage = "league", playoffRound = null) => ({
+    id, home, away, rawDate, date, time, venue, status: "upcoming", apiWinner: null, stage,
+    ...(playoffRound ? { playoffRound } : {}),
+  });
+  return [
+    m("ipl26-1",  "RCB",  "SRH",  "2026-03-28T14:00:00Z", "28 Mar", "7:30 PM", "M. Chinnaswamy Stadium, Bengaluru"),
+    m("ipl26-2",  "MI",   "KKR",  "2026-03-29T14:00:00Z", "29 Mar", "7:30 PM", "Wankhede Stadium, Mumbai"),
+    m("ipl26-3",  "RR",   "CSK",  "2026-03-30T14:00:00Z", "30 Mar", "7:30 PM", "ACA Stadium, Guwahati"),
+    m("ipl26-4",  "PBKS", "GT",   "2026-03-31T14:00:00Z", "31 Mar", "7:30 PM", "Mullanpur, New Chandigarh"),
+    m("ipl26-5",  "LSG",  "DC",   "2026-04-01T14:00:00Z", "01 Apr", "7:30 PM", "BRSABV Ekana Stadium, Lucknow"),
+    m("ipl26-6",  "KKR",  "SRH",  "2026-04-02T14:00:00Z", "02 Apr", "7:30 PM", "Eden Gardens, Kolkata"),
+    m("ipl26-7",  "CSK",  "PBKS", "2026-04-03T14:00:00Z", "03 Apr", "7:30 PM", "MA Chidambaram Stadium, Chennai"),
+    m("ipl26-8",  "DC",   "MI",   "2026-04-04T10:00:00Z", "04 Apr", "3:30 PM", "Arun Jaitley Stadium, Delhi"),
+    m("ipl26-9",  "GT",   "RR",   "2026-04-04T14:00:00Z", "04 Apr", "7:30 PM", "Narendra Modi Stadium, Ahmedabad"),
+    m("ipl26-10", "SRH",  "LSG",  "2026-04-05T10:00:00Z", "05 Apr", "3:30 PM", "Rajiv Gandhi Intl. Stadium, Hyderabad"),
+    m("ipl26-11", "RCB",  "CSK",  "2026-04-05T14:00:00Z", "05 Apr", "7:30 PM", "M. Chinnaswamy Stadium, Bengaluru"),
+    m("ipl26-12", "KKR",  "PBKS", "2026-04-06T14:00:00Z", "06 Apr", "7:30 PM", "Eden Gardens, Kolkata"),
+    m("ipl26-13", "RR",   "MI",   "2026-04-07T14:00:00Z", "07 Apr", "7:30 PM", "ACA Stadium, Guwahati"),
+    m("ipl26-14", "DC",   "GT",   "2026-04-08T14:00:00Z", "08 Apr", "7:30 PM", "Arun Jaitley Stadium, Delhi"),
+    m("ipl26-15", "KKR",  "LSG",  "2026-04-09T14:00:00Z", "09 Apr", "7:30 PM", "Eden Gardens, Kolkata"),
+    m("ipl26-16", "RR",   "RCB",  "2026-04-10T14:00:00Z", "10 Apr", "7:30 PM", "ACA Stadium, Guwahati"),
+    m("ipl26-17", "PBKS", "SRH",  "2026-04-11T10:00:00Z", "11 Apr", "3:30 PM", "Mullanpur, New Chandigarh"),
+    m("ipl26-18", "CSK",  "DC",   "2026-04-11T14:00:00Z", "11 Apr", "7:30 PM", "MA Chidambaram Stadium, Chennai"),
+    m("ipl26-19", "LSG",  "GT",   "2026-04-12T10:00:00Z", "12 Apr", "3:30 PM", "BRSABV Ekana Stadium, Lucknow"),
+    m("ipl26-20", "MI",   "RCB",  "2026-04-12T14:00:00Z", "12 Apr", "7:30 PM", "Wankhede Stadium, Mumbai"),
+    m("ipl26-21", "SRH",  "RR",   "2026-04-13T14:00:00Z", "13 Apr", "7:30 PM", "Rajiv Gandhi Intl. Stadium, Hyderabad"),
+    m("ipl26-22", "CSK",  "KKR",  "2026-04-14T14:00:00Z", "14 Apr", "7:30 PM", "MA Chidambaram Stadium, Chennai"),
+    m("ipl26-23", "RCB",  "LSG",  "2026-04-15T14:00:00Z", "15 Apr", "7:30 PM", "M. Chinnaswamy Stadium, Bengaluru"),
+    m("ipl26-24", "MI",   "PBKS", "2026-04-16T14:00:00Z", "16 Apr", "7:30 PM", "Wankhede Stadium, Mumbai"),
+    m("ipl26-25", "GT",   "KKR",  "2026-04-17T14:00:00Z", "17 Apr", "7:30 PM", "Narendra Modi Stadium, Ahmedabad"),
+    m("ipl26-26", "RCB",  "DC",   "2026-04-18T10:00:00Z", "18 Apr", "3:30 PM", "M. Chinnaswamy Stadium, Bengaluru"),
+    m("ipl26-27", "SRH",  "CSK",  "2026-04-18T14:00:00Z", "18 Apr", "7:30 PM", "Rajiv Gandhi Intl. Stadium, Hyderabad"),
+    m("ipl26-28", "KKR",  "RR",   "2026-04-19T10:00:00Z", "19 Apr", "3:30 PM", "Eden Gardens, Kolkata"),
+    m("ipl26-29", "PBKS", "LSG",  "2026-04-19T14:00:00Z", "19 Apr", "7:30 PM", "Mullanpur, New Chandigarh"),
+    m("ipl26-30", "GT",   "MI",   "2026-04-20T14:00:00Z", "20 Apr", "7:30 PM", "Narendra Modi Stadium, Ahmedabad"),
+    m("ipl26-31", "SRH",  "DC",   "2026-04-21T14:00:00Z", "21 Apr", "7:30 PM", "Rajiv Gandhi Intl. Stadium, Hyderabad"),
+    m("ipl26-32", "LSG",  "RR",   "2026-04-22T14:00:00Z", "22 Apr", "7:30 PM", "BRSABV Ekana Stadium, Lucknow"),
+    m("ipl26-33", "MI",   "CSK",  "2026-04-23T14:00:00Z", "23 Apr", "7:30 PM", "Wankhede Stadium, Mumbai"),
+    m("ipl26-34", "RCB",  "GT",   "2026-04-24T14:00:00Z", "24 Apr", "7:30 PM", "M. Chinnaswamy Stadium, Bengaluru"),
+    m("ipl26-35", "DC",   "PBKS", "2026-04-25T10:00:00Z", "25 Apr", "3:30 PM", "Arun Jaitley Stadium, Delhi"),
+    m("ipl26-36", "RR",   "SRH",  "2026-04-25T14:00:00Z", "25 Apr", "7:30 PM", "Sawai Mansingh Stadium, Jaipur"),
+    m("ipl26-37", "GT",   "CSK",  "2026-04-26T10:00:00Z", "26 Apr", "3:30 PM", "Narendra Modi Stadium, Ahmedabad"),
+    m("ipl26-38", "LSG",  "KKR",  "2026-04-26T14:00:00Z", "26 Apr", "7:30 PM", "BRSABV Ekana Stadium, Lucknow"),
+    m("ipl26-39", "DC",   "RCB",  "2026-04-27T14:00:00Z", "27 Apr", "7:30 PM", "Arun Jaitley Stadium, Delhi"),
+    m("ipl26-40", "PBKS", "RR",   "2026-04-28T14:00:00Z", "28 Apr", "7:30 PM", "Mullanpur, New Chandigarh"),
+    m("ipl26-41", "MI",   "SRH",  "2026-04-29T14:00:00Z", "29 Apr", "7:30 PM", "Wankhede Stadium, Mumbai"),
+    m("ipl26-42", "GT",   "RCB",  "2026-04-30T14:00:00Z", "30 Apr", "7:30 PM", "Narendra Modi Stadium, Ahmedabad"),
+    m("ipl26-43", "RR",   "DC",   "2026-05-01T14:00:00Z", "01 May", "7:30 PM", "Sawai Mansingh Stadium, Jaipur"),
+    m("ipl26-44", "CSK",  "MI",   "2026-05-02T14:00:00Z", "02 May", "7:30 PM", "MA Chidambaram Stadium, Chennai"),
+    m("ipl26-45", "SRH",  "KKR",  "2026-05-03T10:00:00Z", "03 May", "3:30 PM", "Rajiv Gandhi Intl. Stadium, Hyderabad"),
+    m("ipl26-46", "GT",   "PBKS", "2026-05-03T14:00:00Z", "03 May", "7:30 PM", "Narendra Modi Stadium, Ahmedabad"),
+    m("ipl26-47", "MI",   "LSG",  "2026-05-04T14:00:00Z", "04 May", "7:30 PM", "Wankhede Stadium, Mumbai"),
+    m("ipl26-48", "DC",   "CSK",  "2026-05-05T14:00:00Z", "05 May", "7:30 PM", "Arun Jaitley Stadium, Delhi"),
+    m("ipl26-49", "SRH",  "PBKS", "2026-05-06T14:00:00Z", "06 May", "7:30 PM", "Rajiv Gandhi Intl. Stadium, Hyderabad"),
+    m("ipl26-50", "LSG",  "RCB",  "2026-05-07T14:00:00Z", "07 May", "7:30 PM", "BRSABV Ekana Stadium, Lucknow"),
+    m("ipl26-51", "DC",   "KKR",  "2026-05-08T14:00:00Z", "08 May", "7:30 PM", "Arun Jaitley Stadium, Delhi"),
+    m("ipl26-52", "RR",   "GT",   "2026-05-09T14:00:00Z", "09 May", "7:30 PM", "Sawai Mansingh Stadium, Jaipur"),
+    m("ipl26-53", "CSK",  "LSG",  "2026-05-10T10:00:00Z", "10 May", "3:30 PM", "MA Chidambaram Stadium, Chennai"),
+    m("ipl26-54", "RCB",  "MI",   "2026-05-10T14:00:00Z", "10 May", "7:30 PM", "Shaheed Veer Narayan Singh Stadium, Raipur"),
+    m("ipl26-55", "PBKS", "DC",   "2026-05-11T14:00:00Z", "11 May", "7:30 PM", "HPCA Stadium, Dharamshala"),
+    m("ipl26-56", "GT",   "SRH",  "2026-05-12T14:00:00Z", "12 May", "7:30 PM", "Narendra Modi Stadium, Ahmedabad"),
+    m("ipl26-57", "RCB",  "KKR",  "2026-05-13T14:00:00Z", "13 May", "7:30 PM", "Shaheed Veer Narayan Singh Stadium, Raipur"),
+    m("ipl26-58", "PBKS", "MI",   "2026-05-14T14:00:00Z", "14 May", "7:30 PM", "HPCA Stadium, Dharamshala"),
+    m("ipl26-59", "LSG",  "CSK",  "2026-05-15T14:00:00Z", "15 May", "7:30 PM", "BRSABV Ekana Stadium, Lucknow"),
+    m("ipl26-60", "KKR",  "GT",   "2026-05-16T14:00:00Z", "16 May", "7:30 PM", "Eden Gardens, Kolkata"),
+    m("ipl26-61", "PBKS", "RCB",  "2026-05-17T10:00:00Z", "17 May", "3:30 PM", "HPCA Stadium, Dharamshala"),
+    m("ipl26-62", "DC",   "RR",   "2026-05-17T14:00:00Z", "17 May", "7:30 PM", "Arun Jaitley Stadium, Delhi"),
+    m("ipl26-63", "CSK",  "SRH",  "2026-05-18T14:00:00Z", "18 May", "7:30 PM", "MA Chidambaram Stadium, Chennai"),
+    m("ipl26-64", "RR",   "LSG",  "2026-05-19T14:00:00Z", "19 May", "7:30 PM", "Sawai Mansingh Stadium, Jaipur"),
+    m("ipl26-65", "KKR",  "MI",   "2026-05-20T14:00:00Z", "20 May", "7:30 PM", "Eden Gardens, Kolkata"),
+    m("ipl26-66", "CSK",  "GT",   "2026-05-21T14:00:00Z", "21 May", "7:30 PM", "MA Chidambaram Stadium, Chennai"),
+    m("ipl26-67", "SRH",  "RCB",  "2026-05-22T14:00:00Z", "22 May", "7:30 PM", "Rajiv Gandhi Intl. Stadium, Hyderabad"),
+    m("ipl26-68", "LSG",  "PBKS", "2026-05-23T14:00:00Z", "23 May", "7:30 PM", "BRSABV Ekana Stadium, Lucknow"),
+    m("ipl26-69", "MI",   "RR",   "2026-05-24T10:00:00Z", "24 May", "3:30 PM", "Wankhede Stadium, Mumbai"),
+    m("ipl26-70", "KKR",  "DC",   "2026-05-24T14:00:00Z", "24 May", "7:30 PM", "Eden Gardens, Kolkata"),
+  ];
+}
+
+
+function getPlaceholderMatches() { return getLeagueSchedule(); }
+
 // ─── Main App ──────────────────────────────────────────────────────
 export default function App() {
   const [themeId, setThemeId] = useState(() => {
@@ -938,9 +1139,38 @@ export default function App() {
   const [bets, setBets] = useState({});
   const [tossGuesses, setTossGuesses] = useState({});
   const [manualResults, setManualResults] = useState({});
+  const [playoffAdmin, setPlayoffAdmin] = useState({}); // per playoff match: overrides + confirmed (betting gate)
+
+  // IPL points table (Firebase) — used to seed Qualifier 1 / Eliminator when the league is complete
+  const [iplTable, setIplTable] = useState([
+    { team:"RCB",  played:0, won:0, lost:0, nr:0, nrr:"+0.000", pts:0 },
+    { team:"MI",   played:0, won:0, lost:0, nr:0, nrr:"+0.000", pts:0 },
+    { team:"CSK",  played:0, won:0, lost:0, nr:0, nrr:"+0.000", pts:0 },
+    { team:"KKR",  played:0, won:0, lost:0, nr:0, nrr:"+0.000", pts:0 },
+    { team:"SRH",  played:0, won:0, lost:0, nr:0, nrr:"+0.000", pts:0 },
+    { team:"DC",   played:0, won:0, lost:0, nr:0, nrr:"+0.000", pts:0 },
+    { team:"RR",   played:0, won:0, lost:0, nr:0, nrr:"+0.000", pts:0 },
+    { team:"PBKS", played:0, won:0, lost:0, nr:0, nrr:"+0.000", pts:0 },
+    { team:"LSG",  played:0, won:0, lost:0, nr:0, nrr:"+0.000", pts:0 },
+    { team:"GT",   played:0, won:0, lost:0, nr:0, nrr:"+0.000", pts:0 },
+  ]);
+
+  // League 70 + auto play-offs (top 4 from iplTable after all league games are resulted)
+  const matches = useMemo(() => {
+    const league = getLeagueSchedule();
+    const leagueDone = league.filter(m => {
+      const k = fbKeyStatic(m.id);
+      const st = manualResults[k]?.status || m.status;
+      return st === "completed" || st === "abandoned";
+    }).length;
+    const playoffs = mergePlayoffAdminRows(
+      buildIplPlayoffFixtures(iplTable, manualResults, leagueDone),
+      playoffAdmin
+    );
+    return [...league, ...playoffs];
+  }, [iplTable, manualResults, playoffAdmin]);
 
   // Cricket API state
-  const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState(null); // kept for compatibility
   const [lastFetched, setLastFetched] = useState(null); // kept for compatibility
@@ -962,6 +1192,7 @@ export default function App() {
       onValue(ref(db, "avatars"), snap => setCustomAvatars(snap.val() || {})),
       onValue(ref(db, "tossGuesses"), snap => setTossGuesses(snap.val() || {})),
       onValue(ref(db, "manualResults"), snap => setManualResults(snap.val() || {})),
+      onValue(ref(db, "playoffAdmin"), snap => setPlayoffAdmin(snap.val() || {})),
       onValue(ref(db, "iplTable"), snap => { if (snap.val()) setIplTable(snap.val()); }),
       onValue(ref(db, "chat"), snap => {
         const data = snap.val() || {};
@@ -977,10 +1208,8 @@ export default function App() {
     return () => unsubs.forEach(u => u());
   }, []);
 
-  // ── Load schedule immediately, enrich with live API in background ──
+  // ── Loading gate (schedule merged with auto-playoffs when iplTable / manualResults update) ──
   useEffect(() => {
-    const schedule = getPlaceholderMatches();
-    setMatches(schedule);
     setLoading(false);
   }, []);
 
@@ -1065,8 +1294,7 @@ export default function App() {
   useEffect(() => {
     function checkAutoLock() {
       const now = Date.now();
-      const schedule = getPlaceholderMatches();
-      schedule.forEach(match => {
+      matches.forEach(match => {
         const matchTime = new Date(match.rawDate).getTime();
         const minsUntil = (matchTime - now) / 60000;
         const key = match.id.replace(/[^a-zA-Z0-9_]/g, "_");
@@ -1088,91 +1316,8 @@ export default function App() {
     checkAutoLock();
     const interval = setInterval(checkAutoLock, 5 * 60 * 1000);
     return () => clearInterval(interval);
-  }, [manualResults]);
+  }, [manualResults, matches]);
 
-
-  function getPlaceholderMatches() {
-    // Official IPL 2026 league stage (70 matches). Optional 8th arg stage — use "playoff" for knockouts (excluded from league P/W/L).
-    const m = (id, home, away, rawDate, date, time, venue, stage = "league") => ({
-      id, home, away, rawDate, date, time, venue, status: "upcoming", apiWinner: null, stage,
-    });
-    // When BCCI announces playoff bracket, append rows here (same `m(...)` shape, last arg "playoff"):
-    // m("ipl26-po-q1", "GT", "CSK", "2026-05-27T14:00:00Z", "27 May", "7:30 PM", "Narendra Modi Stadium, Ahmedabad", "playoff"),
-    const IPL_2026_PLAYOFFS = [];
-    return [
-      m("ipl26-1",  "RCB",  "SRH",  "2026-03-28T14:00:00Z", "28 Mar", "7:30 PM", "M. Chinnaswamy Stadium, Bengaluru"),
-      m("ipl26-2",  "MI",   "KKR",  "2026-03-29T14:00:00Z", "29 Mar", "7:30 PM", "Wankhede Stadium, Mumbai"),
-      m("ipl26-3",  "RR",   "CSK",  "2026-03-30T14:00:00Z", "30 Mar", "7:30 PM", "ACA Stadium, Guwahati"),
-      m("ipl26-4",  "PBKS", "GT",   "2026-03-31T14:00:00Z", "31 Mar", "7:30 PM", "Mullanpur, New Chandigarh"),
-      m("ipl26-5",  "LSG",  "DC",   "2026-04-01T14:00:00Z", "01 Apr", "7:30 PM", "BRSABV Ekana Stadium, Lucknow"),
-      m("ipl26-6",  "KKR",  "SRH",  "2026-04-02T14:00:00Z", "02 Apr", "7:30 PM", "Eden Gardens, Kolkata"),
-      m("ipl26-7",  "CSK",  "PBKS", "2026-04-03T14:00:00Z", "03 Apr", "7:30 PM", "MA Chidambaram Stadium, Chennai"),
-      m("ipl26-8",  "DC",   "MI",   "2026-04-04T10:00:00Z", "04 Apr", "3:30 PM", "Arun Jaitley Stadium, Delhi"),
-      m("ipl26-9",  "GT",   "RR",   "2026-04-04T14:00:00Z", "04 Apr", "7:30 PM", "Narendra Modi Stadium, Ahmedabad"),
-      m("ipl26-10", "SRH",  "LSG",  "2026-04-05T10:00:00Z", "05 Apr", "3:30 PM", "Rajiv Gandhi Intl. Stadium, Hyderabad"),
-      m("ipl26-11", "RCB",  "CSK",  "2026-04-05T14:00:00Z", "05 Apr", "7:30 PM", "M. Chinnaswamy Stadium, Bengaluru"),
-      m("ipl26-12", "KKR",  "PBKS", "2026-04-06T14:00:00Z", "06 Apr", "7:30 PM", "Eden Gardens, Kolkata"),
-      m("ipl26-13", "RR",   "MI",   "2026-04-07T14:00:00Z", "07 Apr", "7:30 PM", "ACA Stadium, Guwahati"),
-      m("ipl26-14", "DC",   "GT",   "2026-04-08T14:00:00Z", "08 Apr", "7:30 PM", "Arun Jaitley Stadium, Delhi"),
-      m("ipl26-15", "KKR",  "LSG",  "2026-04-09T14:00:00Z", "09 Apr", "7:30 PM", "Eden Gardens, Kolkata"),
-      m("ipl26-16", "RR",   "RCB",  "2026-04-10T14:00:00Z", "10 Apr", "7:30 PM", "ACA Stadium, Guwahati"),
-      m("ipl26-17", "PBKS", "SRH",  "2026-04-11T10:00:00Z", "11 Apr", "3:30 PM", "Mullanpur, New Chandigarh"),
-      m("ipl26-18", "CSK",  "DC",   "2026-04-11T14:00:00Z", "11 Apr", "7:30 PM", "MA Chidambaram Stadium, Chennai"),
-      m("ipl26-19", "LSG",  "GT",   "2026-04-12T10:00:00Z", "12 Apr", "3:30 PM", "BRSABV Ekana Stadium, Lucknow"),
-      m("ipl26-20", "MI",   "RCB",  "2026-04-12T14:00:00Z", "12 Apr", "7:30 PM", "Wankhede Stadium, Mumbai"),
-      m("ipl26-21", "SRH",  "RR",   "2026-04-13T14:00:00Z", "13 Apr", "7:30 PM", "Rajiv Gandhi Intl. Stadium, Hyderabad"),
-      m("ipl26-22", "CSK",  "KKR",  "2026-04-14T14:00:00Z", "14 Apr", "7:30 PM", "MA Chidambaram Stadium, Chennai"),
-      m("ipl26-23", "RCB",  "LSG",  "2026-04-15T14:00:00Z", "15 Apr", "7:30 PM", "M. Chinnaswamy Stadium, Bengaluru"),
-      m("ipl26-24", "MI",   "PBKS", "2026-04-16T14:00:00Z", "16 Apr", "7:30 PM", "Wankhede Stadium, Mumbai"),
-      m("ipl26-25", "GT",   "KKR",  "2026-04-17T14:00:00Z", "17 Apr", "7:30 PM", "Narendra Modi Stadium, Ahmedabad"),
-      m("ipl26-26", "RCB",  "DC",   "2026-04-18T10:00:00Z", "18 Apr", "3:30 PM", "M. Chinnaswamy Stadium, Bengaluru"),
-      m("ipl26-27", "SRH",  "CSK",  "2026-04-18T14:00:00Z", "18 Apr", "7:30 PM", "Rajiv Gandhi Intl. Stadium, Hyderabad"),
-      m("ipl26-28", "KKR",  "RR",   "2026-04-19T10:00:00Z", "19 Apr", "3:30 PM", "Eden Gardens, Kolkata"),
-      m("ipl26-29", "PBKS", "LSG",  "2026-04-19T14:00:00Z", "19 Apr", "7:30 PM", "Mullanpur, New Chandigarh"),
-      m("ipl26-30", "GT",   "MI",   "2026-04-20T14:00:00Z", "20 Apr", "7:30 PM", "Narendra Modi Stadium, Ahmedabad"),
-      m("ipl26-31", "SRH",  "DC",   "2026-04-21T14:00:00Z", "21 Apr", "7:30 PM", "Rajiv Gandhi Intl. Stadium, Hyderabad"),
-      m("ipl26-32", "LSG",  "RR",   "2026-04-22T14:00:00Z", "22 Apr", "7:30 PM", "BRSABV Ekana Stadium, Lucknow"),
-      m("ipl26-33", "MI",   "CSK",  "2026-04-23T14:00:00Z", "23 Apr", "7:30 PM", "Wankhede Stadium, Mumbai"),
-      m("ipl26-34", "RCB",  "GT",   "2026-04-24T14:00:00Z", "24 Apr", "7:30 PM", "M. Chinnaswamy Stadium, Bengaluru"),
-      m("ipl26-35", "DC",   "PBKS", "2026-04-25T10:00:00Z", "25 Apr", "3:30 PM", "Arun Jaitley Stadium, Delhi"),
-      m("ipl26-36", "RR",   "SRH",  "2026-04-25T14:00:00Z", "25 Apr", "7:30 PM", "Sawai Mansingh Stadium, Jaipur"),
-      m("ipl26-37", "GT",   "CSK",  "2026-04-26T10:00:00Z", "26 Apr", "3:30 PM", "Narendra Modi Stadium, Ahmedabad"),
-      m("ipl26-38", "LSG",  "KKR",  "2026-04-26T14:00:00Z", "26 Apr", "7:30 PM", "BRSABV Ekana Stadium, Lucknow"),
-      m("ipl26-39", "DC",   "RCB",  "2026-04-27T14:00:00Z", "27 Apr", "7:30 PM", "Arun Jaitley Stadium, Delhi"),
-      m("ipl26-40", "PBKS", "RR",   "2026-04-28T14:00:00Z", "28 Apr", "7:30 PM", "Mullanpur, New Chandigarh"),
-      m("ipl26-41", "MI",   "SRH",  "2026-04-29T14:00:00Z", "29 Apr", "7:30 PM", "Wankhede Stadium, Mumbai"),
-      m("ipl26-42", "GT",   "RCB",  "2026-04-30T14:00:00Z", "30 Apr", "7:30 PM", "Narendra Modi Stadium, Ahmedabad"),
-      m("ipl26-43", "RR",   "DC",   "2026-05-01T14:00:00Z", "01 May", "7:30 PM", "Sawai Mansingh Stadium, Jaipur"),
-      m("ipl26-44", "CSK",  "MI",   "2026-05-02T14:00:00Z", "02 May", "7:30 PM", "MA Chidambaram Stadium, Chennai"),
-      m("ipl26-45", "SRH",  "KKR",  "2026-05-03T10:00:00Z", "03 May", "3:30 PM", "Rajiv Gandhi Intl. Stadium, Hyderabad"),
-      m("ipl26-46", "GT",   "PBKS", "2026-05-03T14:00:00Z", "03 May", "7:30 PM", "Narendra Modi Stadium, Ahmedabad"),
-      m("ipl26-47", "MI",   "LSG",  "2026-05-04T14:00:00Z", "04 May", "7:30 PM", "Wankhede Stadium, Mumbai"),
-      m("ipl26-48", "DC",   "CSK",  "2026-05-05T14:00:00Z", "05 May", "7:30 PM", "Arun Jaitley Stadium, Delhi"),
-      m("ipl26-49", "SRH",  "PBKS", "2026-05-06T14:00:00Z", "06 May", "7:30 PM", "Rajiv Gandhi Intl. Stadium, Hyderabad"),
-      m("ipl26-50", "LSG",  "RCB",  "2026-05-07T14:00:00Z", "07 May", "7:30 PM", "BRSABV Ekana Stadium, Lucknow"),
-      m("ipl26-51", "DC",   "KKR",  "2026-05-08T14:00:00Z", "08 May", "7:30 PM", "Arun Jaitley Stadium, Delhi"),
-      m("ipl26-52", "RR",   "GT",   "2026-05-09T14:00:00Z", "09 May", "7:30 PM", "Sawai Mansingh Stadium, Jaipur"),
-      m("ipl26-53", "CSK",  "LSG",  "2026-05-10T10:00:00Z", "10 May", "3:30 PM", "MA Chidambaram Stadium, Chennai"),
-      m("ipl26-54", "RCB",  "MI",   "2026-05-10T14:00:00Z", "10 May", "7:30 PM", "Shaheed Veer Narayan Singh Stadium, Raipur"),
-      m("ipl26-55", "PBKS", "DC",   "2026-05-11T14:00:00Z", "11 May", "7:30 PM", "HPCA Stadium, Dharamshala"),
-      m("ipl26-56", "GT",   "SRH",  "2026-05-12T14:00:00Z", "12 May", "7:30 PM", "Narendra Modi Stadium, Ahmedabad"),
-      m("ipl26-57", "RCB",  "KKR",  "2026-05-13T14:00:00Z", "13 May", "7:30 PM", "Shaheed Veer Narayan Singh Stadium, Raipur"),
-      m("ipl26-58", "PBKS", "MI",   "2026-05-14T14:00:00Z", "14 May", "7:30 PM", "HPCA Stadium, Dharamshala"),
-      m("ipl26-59", "LSG",  "CSK",  "2026-05-15T14:00:00Z", "15 May", "7:30 PM", "BRSABV Ekana Stadium, Lucknow"),
-      m("ipl26-60", "KKR",  "GT",   "2026-05-16T14:00:00Z", "16 May", "7:30 PM", "Eden Gardens, Kolkata"),
-      m("ipl26-61", "PBKS", "RCB",  "2026-05-17T10:00:00Z", "17 May", "3:30 PM", "HPCA Stadium, Dharamshala"),
-      m("ipl26-62", "DC",   "RR",   "2026-05-17T14:00:00Z", "17 May", "7:30 PM", "Arun Jaitley Stadium, Delhi"),
-      m("ipl26-63", "CSK",  "SRH",  "2026-05-18T14:00:00Z", "18 May", "7:30 PM", "MA Chidambaram Stadium, Chennai"),
-      m("ipl26-64", "RR",   "LSG",  "2026-05-19T14:00:00Z", "19 May", "7:30 PM", "Sawai Mansingh Stadium, Jaipur"),
-      m("ipl26-65", "KKR",  "MI",   "2026-05-20T14:00:00Z", "20 May", "7:30 PM", "Eden Gardens, Kolkata"),
-      m("ipl26-66", "CSK",  "GT",   "2026-05-21T14:00:00Z", "21 May", "7:30 PM", "MA Chidambaram Stadium, Chennai"),
-      m("ipl26-67", "SRH",  "RCB",  "2026-05-22T14:00:00Z", "22 May", "7:30 PM", "Rajiv Gandhi Intl. Stadium, Hyderabad"),
-      m("ipl26-68", "LSG",  "PBKS", "2026-05-23T14:00:00Z", "23 May", "7:30 PM", "BRSABV Ekana Stadium, Lucknow"),
-      m("ipl26-69", "MI",   "RR",   "2026-05-24T10:00:00Z", "24 May", "3:30 PM", "Wankhede Stadium, Mumbai"),
-      m("ipl26-70", "KKR",  "DC",   "2026-05-24T14:00:00Z", "24 May", "7:30 PM", "Eden Gardens, Kolkata"),
-      ...IPL_2026_PLAYOFFS,
-    ];
-  }
 
   // ── Notifications ─────────────────────────────────────────────
   function notify(msg, type = "success") {
@@ -1230,6 +1375,9 @@ export default function App() {
     if (!match || getEffectiveStatus(match) !== "upcoming") {
       return notify("Betting is closed for this match!", "error");
     }
+    if (match.stage === "playoff" && !match.playoffBettingOpen) {
+      return notify("🔒 This playoff is not confirmed in Admin yet — betting stays locked.", "error");
+    }
     const key = `${matchId}__${player}`;
     await set(ref(db, `bets/${key}`), team);
     notify(`${PLAYER_META[player].emoji} ${player} bets on ${team}!`);
@@ -1239,6 +1387,9 @@ export default function App() {
     const match = matches.find(m => m.id === matchId);
     if (!match || getEffectiveStatus(match) !== "upcoming") {
       return notify("Betting is closed for this match!", "error");
+    }
+    if (match.stage === "playoff" && !match.playoffBettingOpen) {
+      return notify("🔒 This playoff is not confirmed in Admin yet — betting stays locked.", "error");
     }
     const key = `${matchId}__${player}`;
     await set(ref(db, `tossGuesses/${key}`), team);
@@ -1909,20 +2060,6 @@ export default function App() {
     return { enriched, h2h, total, weeklyInsights, weeklyMiniLeague };
   }
 
-  // IPL Points Table state
-  const [iplTable, setIplTable] = useState([
-    { team:"RCB",  played:0, won:0, lost:0, nr:0, nrr:"+0.000", pts:0 },
-    { team:"MI",   played:0, won:0, lost:0, nr:0, nrr:"+0.000", pts:0 },
-    { team:"CSK",  played:0, won:0, lost:0, nr:0, nrr:"+0.000", pts:0 },
-    { team:"KKR",  played:0, won:0, lost:0, nr:0, nrr:"+0.000", pts:0 },
-    { team:"SRH",  played:0, won:0, lost:0, nr:0, nrr:"+0.000", pts:0 },
-    { team:"DC",   played:0, won:0, lost:0, nr:0, nrr:"+0.000", pts:0 },
-    { team:"RR",   played:0, won:0, lost:0, nr:0, nrr:"+0.000", pts:0 },
-    { team:"PBKS", played:0, won:0, lost:0, nr:0, nrr:"+0.000", pts:0 },
-    { team:"LSG",  played:0, won:0, lost:0, nr:0, nrr:"+0.000", pts:0 },
-    { team:"GT",   played:0, won:0, lost:0, nr:0, nrr:"+0.000", pts:0 },
-  ]);
-
   // ─────────────────────────────────────────────────────────────
   return (
     <div style={{
@@ -2337,7 +2474,10 @@ export default function App() {
                     style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <TeamBadge short={match.home} size={32} />
                     <div style={{ flex: 1 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                        {match.stage === "playoff" && (
+                          <span style={{ fontSize: 9, fontWeight: 800, color: "#FFD700", padding: "1px 6px", borderRadius: 8, background: "#FFD70015", border: "1px solid #FFD70033" }}>🏆 {match.playoffRound || "PO"}</span>
+                        )}
                         <span style={{ fontSize: 12, fontWeight: 800, color: "#E2E8F8" }}>{match.home}</span>
                         <span style={{ fontSize: 10, color: "#FF6B2B", fontWeight: 700 }}>VS</span>
                         <span style={{ fontSize: 12, fontWeight: 800, color: "#E2E8F8" }}>{match.away}</span>
@@ -2380,6 +2520,14 @@ export default function App() {
                         🏟 {match.venue.split(",")[0]} · {fmtMatchTime(match.rawDate)}
                       </div>
 
+                  {match.stage === "playoff" && !match.playoffBettingOpen ? (
+                    <div style={{ textAlign: "center", padding: 18, color: "#94A3B8", fontSize: 12, lineHeight: 1.55, background: "#0A1420", borderRadius: 10, border: "1px solid #1A3050" }}>
+                      <div style={{ fontSize: 24, marginBottom: 6 }}>🔒</div>
+                      <div style={{ fontWeight: 800, color: "#F59E0B" }}>Betting locked</div>
+                      <div style={{ marginTop: 6 }}>A playoff must be <b>reviewed and confirmed</b> in <b>Admin → Playoffs</b> before picks are allowed.</div>
+                    </div>
+                  ) : (
+                    <>
                   {/* Winner pick */}
                   <div style={{ marginBottom: 10 }}>
                     <div style={{ fontSize: 10, color: "#4A6080", marginBottom: 6, fontWeight: 700, letterSpacing: 0.3 }}>
@@ -2479,6 +2627,8 @@ export default function App() {
                       </div>
                     )}
                   </div>
+                    </>
+                  )}
                     </div>
                   )}
                 </div>
@@ -2497,13 +2647,15 @@ export default function App() {
           const fixtureNoById = Object.fromEntries(matches.map((m, i) => [m.id, i + 1]));
           const byDateAsc = (a, b) => new Date(a.rawDate).getTime() - new Date(b.rawDate).getTime();
           const byDateDesc = (a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime();
+          const isPlayoff = m => m.stage === "playoff";
 
           const inProgressMatches = matches
-            .filter(m => getEffectiveStatus(m) === "live")
+            .filter(m => !isPlayoff(m) && getEffectiveStatus(m) === "live")
             .sort(byDateAsc);
 
           const latestResults = matches
             .filter(m => {
+              if (isPlayoff(m)) return false;
               const status = getEffectiveStatus(m);
               const ts = new Date(m.rawDate).getTime();
               return (status === "completed" || status === "abandoned") && ts >= recentCutoff;
@@ -2512,6 +2664,7 @@ export default function App() {
 
           const nextThreeDays = matches
             .filter(m => {
+              if (isPlayoff(m)) return false;
               const status = getEffectiveStatus(m);
               const ts = new Date(m.rawDate).getTime();
               return status === "upcoming" && ts <= upcomingCutoff;
@@ -2520,6 +2673,7 @@ export default function App() {
 
           const futureGames = matches
             .filter(m => {
+              if (isPlayoff(m)) return false;
               const status = getEffectiveStatus(m);
               const ts = new Date(m.rawDate).getTime();
               return status === "upcoming" && ts > upcomingCutoff;
@@ -2528,11 +2682,15 @@ export default function App() {
 
           const olderResults = matches
             .filter(m => {
+              if (isPlayoff(m)) return false;
               const status = getEffectiveStatus(m);
               const ts = new Date(m.rawDate).getTime();
               return (status === "completed" || status === "abandoned") && ts < recentCutoff;
             })
             .sort(byDateDesc);
+
+          const playoffMatches = matches.filter(isPlayoff).sort(byDateAsc);
+          const hasLivePlayoff = matches.some(m => isPlayoff(m) && getEffectiveStatus(m) === "live");
 
           function renderScheduleCard(match) {
             const status = getEffectiveStatus(match);
@@ -2548,9 +2706,16 @@ export default function App() {
 
             return (
               <div key={match.id} style={{ ...S.card(status === "live" ? "#EF444433" : "#1A3050"), opacity: (status === "completed" || status === "abandoned") ? 0.75 : 1 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                  <span style={{ fontSize: 10, color: "#4A6080" }}>Match {fixtureNoById[match.id]} · {fmtMatchDate(match.rawDate)}</span>
-                  <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: statusStyle.bg, color: statusStyle.color }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, gap: 8, alignItems: "flex-start" }}>
+                  <span style={{ fontSize: 10, color: "#4A6080", lineHeight: 1.35 }}>
+                    {match.stage === "playoff" && (
+                      <span style={{ display: "inline-block", marginRight: 4, fontWeight: 800, color: "#FFD700" }}>🏆</span>
+                    )}
+                    Match {fixtureNoById[match.id]}
+                    {match.playoffRound ? ` · ${match.playoffRound}` : match.stage === "playoff" ? " · Playoff" : ""}
+                    {" · "}{fmtMatchDate(match.rawDate)}
+                  </span>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: statusStyle.bg, color: statusStyle.color, flexShrink: 0 }}>
                     {statusStyle.label}
                   </span>
                 </div>
@@ -2622,7 +2787,7 @@ export default function App() {
             );
           }
 
-          function renderSection(title, list, openByDefault = false) {
+          function renderSection(title, list, openByDefault = false, emptyHint = null) {
             return (
               <details open={openByDefault} style={{ marginBottom: 12 }}>
                 <summary style={{ cursor: "pointer", listStyle: "none", background: "#0A1420", border: "1px solid #1A3050", borderRadius: 12, padding: "10px 12px", fontFamily: "'Syne',sans-serif", fontSize: 12, color: "#E2E8F8", fontWeight: 800, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -2631,8 +2796,8 @@ export default function App() {
                 </summary>
                 <div style={{ marginTop: 10 }}>
                   {list.length === 0 ? (
-                    <div style={{ ...S.card(), marginTop: 0, textAlign: "center", color: "#4A6080", fontSize: 11 }}>
-                      No matches in this section.
+                    <div style={{ ...S.card(), marginTop: 0, textAlign: "center", color: "#4A6080", fontSize: 11, lineHeight: 1.55 }}>
+                      {emptyHint || "No matches in this section."}
                     </div>
                   ) : (
                     list.map(renderScheduleCard)
@@ -2659,6 +2824,12 @@ export default function App() {
                 )}
               </div>
 
+              {renderSection(
+                "🏆 Playoffs (knockouts)",
+                playoffMatches,
+                hasLivePlayoff,
+                "Playoffs are created automatically once all 70 league matches have a result and the points table has a clear top 4 (Qualifier 1 = 1st vs 2nd, Eliminator = 3rd vs 4th). Qualifier 2 and the Final appear after you enter winners for the earlier knockouts in Admin."
+              )}
               {renderSection("📅 Next 3 Days", nextThreeDays, true)}
               {renderSection("🔮 Future Games", futureGames, false)}
               {renderSection("📊 Latest Results", latestResults, false)}
@@ -3033,7 +3204,7 @@ export default function App() {
                   </div>
                 </div>
                 <div style={{padding:"6px 12px",fontSize:9,color:"#2A4060",borderTop:"1px solid #0A1420",textAlign:"center",lineHeight:1.5}}>
-                  🟡 Top 4 qualify · Form = last 5 league games (oldest → newest) · On small screens, swipe the table sideways to see FORM · Playoff knockouts: push rows into IPL_2026_PLAYOFFS with the 8th argument set to playoff so they don’t alter league P/W/L
+                  🟡 Top 4 qualify · Form = last 5 league games · Playoffs auto-fill from table after {IPL_LEAGUE_MATCH_COUNT} league results · Swipe for FORM
                 </div>
               </div>
 
@@ -3641,6 +3812,155 @@ export default function App() {
               <div>4️⃣ Points update instantly on all 3 phones ✅</div>
             </div>
 
+            {/* Playoffs — IPL bracket is derived automatically from the league table */}
+            <div style={{ background: "#0A1420", border: "1px solid #FFD70033", borderRadius: 12, padding: 14, marginBottom: 16 }}>
+              <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 14, color: "#FFD700", fontWeight: 800, marginBottom: 8 }}>🏆 Playoffs (knockouts)</div>
+              <div style={{ fontSize: 11, color: "#7A90B0", lineHeight: 1.65, marginBottom: 10 }}>
+                After <b>all {IPL_LEAGUE_MATCH_COUNT} league games</b> are resulted, <b>Qualifier 1</b> (1st vs 2nd) and the <b>Eliminator</b> (3rd vs 4th) are built from the points table (pts, then NRR).
+                <b>Qualifier 2</b> (loser Q1 vs winner Elim) and the <b>Final</b> (winner Q1 vs winner Q2) appear once you set winners on those earlier playoff rows below — same Admin flow as league games.
+                Default knockout slots live in <span style={{ color: "#93C5FD", fontWeight: 700 }}>IPL_2026_PLAYOFF_SCHEDULE</span> at the top of App.jsx (edit when BCCI confirms).
+                <b> League P/W/L auto-sync and Stats form ignore playoffs.</b>
+              </div>
+              <div style={{ fontSize: 11, color: matches.some(m => m.stage === "playoff") ? "#22C55E" : "#4A6080", fontWeight: 700, marginBottom: 4 }}>
+                {matches.filter(m => m.stage === "playoff").length === 0
+                  ? `0 playoff rows yet — complete all ${IPL_LEAGUE_MATCH_COUNT} league matches first (and sync the table so top 4 is correct).`
+                  : `${matches.filter(m => m.stage === "playoff").length} playoff fixture(s) — review here, then confirm each one so betting unlocks.`}
+              </div>
+
+              {matches.filter(m => m.stage === "playoff").length > 0 && (
+                <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #FFD70022" }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#F59E0B", marginBottom: 8 }}>✏️ Playoff fixture review</div>
+                  <div style={{ fontSize: 10, color: "#4A6080", marginBottom: 12, lineHeight: 1.55 }}>
+                    Override teams, venue, or start time if auto-detection is wrong. <b style={{ color: "#E2E8F8" }}>Bets stay locked until you confirm</b> below. Tab out of fields so changes save before you confirm. Use <b>Revoke</b> to lock again while you fix details.
+                  </div>
+                  {matches.filter(m => m.stage === "playoff").map(match => {
+                    const rowKey = fbKey(match.id);
+                    const o = playoffAdmin[rowKey] || {};
+                    const autoH = match.playoffAutoHome ?? match.home;
+                    const autoA = match.playoffAutoAway ?? match.away;
+                    const defVenue = match.playoffDefaultVenue ?? match.venue ?? "";
+                    const defRaw = match.playoffDefaultRawDate || match.rawDate;
+                    const defLocal = isoToDatetimeLocal(defRaw);
+                    const confirmed = o.confirmed === true;
+                    const teamOpts = Object.keys(IPL_TEAMS).sort();
+                    const homeSel = o.home != null && String(o.home).trim() !== "" ? String(o.home).trim() : "__AUTO__";
+                    const awaySel = o.away != null && String(o.away).trim() !== "" ? String(o.away).trim() : "__AUTO__";
+
+                    return (
+                      <div key={match.id} style={{ background: "#060D14", border: "1px solid #1A3050", borderRadius: 10, padding: 12, marginBottom: 10 }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
+                          <span style={{ fontSize: 12, fontWeight: 800, color: "#E2E8F8" }}>{match.playoffRound || "Playoff"}</span>
+                          <span style={{ fontSize: 10, fontWeight: 800, padding: "4px 10px", borderRadius: 20, background: confirmed ? "#14532D33" : "#42200633", color: confirmed ? "#4ADE80" : "#FBBF24", border: `1px solid ${confirmed ? "#22C55E44" : "#F59E0B44"}` }}>
+                            {confirmed ? "✅ Betting open" : "🔒 Awaiting confirmation"}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 11, color: "#93C5FD", marginBottom: 10, fontWeight: 700 }}>
+                          Table seed: {autoH} vs {autoA} → shown as <b style={{ color: "#E2E8F8" }}>{match.home}</b> vs <b style={{ color: "#E2E8F8" }}>{match.away}</b>
+                        </div>
+
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
+                          <div>
+                            <div style={{ fontSize: 10, color: "#4A6080", marginBottom: 4, fontWeight: 700 }}>Home</div>
+                            <select
+                              value={homeSel}
+                              onChange={e => {
+                                const v = e.target.value;
+                                update(ref(db, `playoffAdmin/${rowKey}`), { home: v === "__AUTO__" ? null : v });
+                              }}
+                              style={{ width: "100%", padding: 8, borderRadius: 8, border: "1px solid #1A3050", background: "#0A1420", color: "#E2E8F8", fontSize: 12, boxSizing: "border-box" }}
+                            >
+                              <option value="__AUTO__">Auto ({autoH})</option>
+                              {teamOpts.map(t => (
+                                <option key={t} value={t}>{t}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 10, color: "#4A6080", marginBottom: 4, fontWeight: 700 }}>Away</div>
+                            <select
+                              value={awaySel}
+                              onChange={e => {
+                                const v = e.target.value;
+                                update(ref(db, `playoffAdmin/${rowKey}`), { away: v === "__AUTO__" ? null : v });
+                              }}
+                              style={{ width: "100%", padding: 8, borderRadius: 8, border: "1px solid #1A3050", background: "#0A1420", color: "#E2E8F8", fontSize: 12, boxSizing: "border-box" }}
+                            >
+                              <option value="__AUTO__">Auto ({autoA})</option>
+                              {teamOpts.map(t => (
+                                <option key={t} value={t}>{t}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+
+                        <div style={{ marginBottom: 10 }}>
+                          <div style={{ fontSize: 10, color: "#4A6080", marginBottom: 4, fontWeight: 700 }}>Venue</div>
+                          <input
+                            type="text"
+                            defaultValue={match.venue}
+                            key={`${rowKey}-venue-${match.venue}`}
+                            placeholder={defVenue}
+                            onBlur={e => {
+                              const v = e.target.value.trim();
+                              update(ref(db, `playoffAdmin/${rowKey}`), { venue: !v || v === defVenue ? null : v });
+                            }}
+                            style={{ width: "100%", padding: 8, borderRadius: 8, border: "1px solid #1A3050", background: "#0A1420", color: "#E2E8F8", fontSize: 12, boxSizing: "border-box" }}
+                          />
+                          <div style={{ fontSize: 9, color: "#2A4060", marginTop: 3 }}>Schedule default: {defVenue}</div>
+                        </div>
+
+                        <div style={{ marginBottom: 12 }}>
+                          <div style={{ fontSize: 10, color: "#4A6080", marginBottom: 4, fontWeight: 700 }}>Date &amp; time</div>
+                          <input
+                            type="datetime-local"
+                            defaultValue={isoToDatetimeLocal(o.rawDate || defRaw)}
+                            key={`${rowKey}-dt-${o.rawDate ?? defRaw}`}
+                            onBlur={e => {
+                              const v = e.target.value;
+                              if (!v || v === defLocal) {
+                                update(ref(db, `playoffAdmin/${rowKey}`), { rawDate: null });
+                                return;
+                              }
+                              const iso = datetimeLocalToIso(v);
+                              update(ref(db, `playoffAdmin/${rowKey}`), { rawDate: iso || null });
+                            }}
+                            style={{ width: "100%", padding: 8, borderRadius: 8, border: "1px solid #1A3050", background: "#0A1420", color: "#E2E8F8", fontSize: 12, boxSizing: "border-box" }}
+                          />
+                        </div>
+
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          {!confirmed ? (
+                            <button
+                              type="button"
+                              onClick={() => update(ref(db, `playoffAdmin/${rowKey}`), { confirmed: true })}
+                              style={{ ...S.btn("#15803D", "#fff"), width: "100%", fontSize: 12 }}
+                            >
+                              ✅ Confirm fixture — open betting
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => update(ref(db, `playoffAdmin/${rowKey}`), { confirmed: false })}
+                              style={{ width: "100%", padding: "10px", borderRadius: 10, border: "1px solid #F59E0B55", background: "#42200622", color: "#FBBF24", fontWeight: 800, fontSize: 12, cursor: "pointer" }}
+                            >
+                              🔒 Revoke confirmation — lock betting for edits
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => update(ref(db, `playoffAdmin/${rowKey}`), { home: null, away: null, venue: null, rawDate: null })}
+                            style={{ width: "100%", padding: "7px", borderRadius: 8, border: "1px solid #1A3050", background: "transparent", color: "#4A6080", fontSize: 11, cursor: "pointer" }}
+                          >
+                            ↩ Clear overrides (revert to table + schedule)
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
             {/* Active matches first; completed folded away — expand to fix results */}
             {(() => {
               function renderAdminMatchCard(match) {
@@ -3657,13 +3977,18 @@ export default function App() {
                 }[status] || { label: status, color: "#7A90B0", bg: "#1A3050" };
 
                 return (
-                  <div key={match.id} style={{ ...S.card(isLocked ? "#1A3050" : "#1A3050"), marginBottom: 10, opacity: status === "completed" ? 0.85 : 1 }}>
+                  <div key={match.id} style={{ ...S.card(isLocked ? "#1A3050" : "#1A3050"), marginBottom: 10, opacity: status === "completed" ? 0.85 : 1, borderLeft: match.stage === "playoff" ? "3px solid #FFD70088" : undefined }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                         <TeamBadge short={match.home} size={28} />
                         <span style={{ fontSize: 11, fontWeight: 800, color: "#E2E8F8" }}>vs</span>
                         <TeamBadge short={match.away} size={28} />
                         <span style={{ fontSize: 12, fontWeight: 700, color: "#E2E8F8" }}>{match.home} v {match.away}</span>
+                        {match.stage === "playoff" && (
+                          <span style={{ fontSize: 9, fontWeight: 800, color: "#FFD700", padding: "2px 8px", borderRadius: 10, background: "#FFD70018", border: "1px solid #FFD70044" }}>
+                            🏆 {match.playoffRound || "Playoff"}
+                          </span>
+                        )}
                       </div>
                       <div style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 20, background: statusConfig.bg, color: statusConfig.color }}>
                         {statusConfig.label}
