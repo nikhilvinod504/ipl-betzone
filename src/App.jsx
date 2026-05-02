@@ -808,6 +808,46 @@ function parseEspnSummaryToCompletedDetail(summaryJson, fixtureMatch) {
   return { metaLine: safeMeta, rows, resultLine };
 }
 
+// ─── IST calendar week (Mon–Sun) for weekly mini-league ───────────────
+const IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1000;
+
+function istMidnightUtcMs(year, monthIndex0, day) {
+  return Date.UTC(year, monthIndex0, day, 0, 0, 0, 0) - IST_OFFSET_MS;
+}
+
+function getNowIstYmdParts(ref = new Date()) {
+  const p = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(ref);
+  return {
+    y: +p.find(x => x.type === "year").value,
+    m: +p.find(x => x.type === "month").value,
+    d: +p.find(x => x.type === "day").value,
+  };
+}
+
+function istCalendarAddDays(y, m, d, delta) {
+  const refUtc = istMidnightUtcMs(y, m - 1, d) + 12 * 3600000;
+  return getNowIstYmdParts(new Date(refUtc + delta * 86400000));
+}
+
+function istMondaySundayBoundsUtc(now = new Date()) {
+  const wdStr = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Kolkata", weekday: "short" }).format(now);
+  const map = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  const dow = map[wdStr] ?? 1;
+  const fromMon = (dow + 6) % 7;
+  const { y, m, d } = getNowIstYmdParts(now);
+  const mon = istCalendarAddDays(y, m, d, -fromMon);
+  const sun = istCalendarAddDays(mon.y, mon.m, mon.d, 6);
+  const startMs = istMidnightUtcMs(mon.y, mon.m - 1, mon.d);
+  const endMs = istMidnightUtcMs(sun.y, sun.m - 1, sun.d) + 86400000 - 1;
+  const label = `Mon ${mon.d} ${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][mon.m - 1]} – Sun ${sun.d} ${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][sun.m - 1]} · IST`;
+  return { startMs, endMs, label };
+}
+
 // ─── Team Badge ────────────────────────────────────────────────────
 function TeamBadge({ short, size = 40 }) {
   const t = IPL_TEAMS[short];
@@ -1417,6 +1457,23 @@ export default function App() {
   }, [completedEspnPollKey]);
 
   const completedMatches = matches.filter(m => getEffectiveStatus(m) === "completed" || getEffectiveStatus(m) === "abandoned");
+
+  /** Last 5 completed fixtures (oldest→newest): W/L on winner pick, wash, or skip if no pick */
+  function getPlayerFormLast5(player) {
+    const seq = [...completedMatches]
+      .sort((a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime())
+      .slice(0, 5)
+      .reverse();
+    return seq.map(match => {
+      const status = getEffectiveStatus(match);
+      if (status === "abandoned") return "wash";
+      const w = getEffectiveWinner(match);
+      const bet = bets[`${match.id}__${player}`];
+      if (!bet || !w) return "skip";
+      return bet === w ? "W" : "L";
+    });
+  }
+
   const nextFiveUpcoming = [...upcomingMatches]
     .sort((a, b) => new Date(a.rawDate).getTime() - new Date(b.rawDate).getTime())
     .slice(0, 5);
@@ -1720,6 +1777,22 @@ export default function App() {
       },
     };
 
+    const { startMs: wkStart, endMs: wkEnd, label: weekMiniLabel } = istMondaySundayBoundsUtc();
+    const weekMiniMatches = done.filter(m => {
+      const t = new Date(m.rawDate).getTime();
+      return t >= wkStart && t <= wkEnd;
+    });
+    const weekMiniPts = Object.fromEntries(PLAYERS.map(p => [p, 0]));
+    weekMiniMatches.forEach(m => applyPointsForMatch(weekMiniPts, m));
+    const weeklyMiniRanked = [...PLAYERS].sort((a, b) => weekMiniPts[b] - weekMiniPts[a] || a.localeCompare(b));
+
+    const weeklyMiniLeague = {
+      label: weekMiniLabel,
+      matchesCount: weekMiniMatches.length,
+      pts: weekMiniPts,
+      ranked: weeklyMiniRanked,
+    };
+
     // Favourite team = most bet on
     // Lucky team = most points earned from
     const enriched = {};
@@ -1758,7 +1831,7 @@ export default function App() {
       }
     }
 
-    return { enriched, h2h, total, weeklyInsights };
+    return { enriched, h2h, total, weeklyInsights, weeklyMiniLeague };
   }
 
   // IPL Points Table state
@@ -2064,6 +2137,33 @@ export default function App() {
                       <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 15, color: meta.color }}>{player}</div>
                       <div style={{ fontSize: 11, color: "#2A4060", marginTop: 2 }}>
                         {breakdown[player].filter(b => b.gained > 0).length} correct · {completedMatches.length} played
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
+                        <span style={{ fontSize: 9, color: "#4A6080", fontWeight: 700, flexShrink: 0 }}>Form</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+                          {getPlayerFormLast5(player).map((cell, i) => (
+                            <span
+                              key={i}
+                              title={cell === "W" ? "Winner pick correct" : cell === "L" ? "Winner pick wrong" : cell === "wash" ? "Washout" : "No pick"}
+                              style={{
+                                fontSize: 9,
+                                fontWeight: 800,
+                                width: 18,
+                                height: 18,
+                                borderRadius: 4,
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                background:
+                                  cell === "W" ? "#14532D55" : cell === "L" ? "#7F1D1D55" : cell === "wash" ? "#1E3A5F55" : "#0A1420",
+                                color: cell === "W" ? "#22C55E" : cell === "L" ? "#FCA5A5" : cell === "wash" ? "#93C5FD" : "#4A6080",
+                                border: `1px solid ${cell === "W" ? "#22C55E44" : cell === "L" ? "#EF444444" : cell === "wash" ? "#60A5FA44" : "#1A3050"}`,
+                              }}
+                            >
+                              {cell === "W" ? "W" : cell === "L" ? "L" : cell === "wash" ? "◎" : "—"}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     </div>
                     <div style={{ textAlign: "right" }}>
@@ -2604,7 +2704,7 @@ export default function App() {
 
         {/* ── STATS ── */}
         {!loading && tab === "stats" && (() => {
-          const { enriched, h2h, total, weeklyInsights } = calcStats();
+          const { enriched, h2h, total, weeklyInsights, weeklyMiniLeague } = calcStats();
 
           // Build points progression data from completed matches
           const progressionData = (() => {
@@ -2746,6 +2846,55 @@ export default function App() {
                         {weeklyInsights.tossMaster.correct}/{weeklyInsights.tossMaster.total || 0} correct
                       </div>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Weekly mini league (Mon–Sun IST) */}
+              <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 13, color: "#FFD700", fontWeight: 800, marginBottom: 4, letterSpacing: 0.5 }}>🏅 WEEKLY MINI LEAGUE</div>
+              <div style={{ fontSize: 11, color: "#4A6080", marginBottom: 10 }}>
+                {weeklyMiniLeague.label} · Points match season rules · 🏆 Board still shows full season
+              </div>
+              {weeklyMiniLeague.matchesCount === 0 ? (
+                <div style={{ ...S.card(), textAlign: "center", color: "#4A6080", padding: 22, marginBottom: 16 }}>
+                  <div style={{ fontSize: 26, marginBottom: 6 }}>🏅</div>
+                  <div style={{ fontSize: 12, fontWeight: 700 }}>No completed fixtures this week yet</div>
+                  <div style={{ fontSize: 10, marginTop: 4 }}>Mini league resets every Monday (IST).</div>
+                </div>
+              ) : (
+                <div style={{ ...S.card("#FFD70022"), marginBottom: 16, padding: "12px 8px 14px", border: "1px solid #FFD70033" }}>
+                  <div style={{ display: "flex", justifyContent: "center", alignItems: "flex-end", gap: 8, marginBottom: 4 }}>
+                    {[1, 0, 2].map(idx => {
+                      const player = weeklyMiniLeague.ranked[idx];
+                      const meta = PLAYER_META[player];
+                      const miniRank = PLAYERS.filter(p => weeklyMiniLeague.pts[p] > weeklyMiniLeague.pts[player]).length + 1;
+                      const podiumHeights = { 1: 76, 2: 60, 3: 46 };
+                      const podiumH = podiumHeights[miniRank] || 46;
+                      const isTop = miniRank === 1;
+                      return (
+                        <div key={`mini-${player}`} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                          <div style={{ fontSize: isTop ? 22 : 16 }}>{meta.emoji}</div>
+                          <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: isTop ? 12 : 10, color: meta.color, textAlign: "center", lineHeight: 1.2 }}>{player}</div>
+                          <div style={{ fontSize: isTop ? 20 : 16, fontWeight: 900, color: "#FFD700", lineHeight: 1 }}>{weeklyMiniLeague.pts[player]}</div>
+                          <div style={{ fontSize: 8, color: "#4A6080" }}>pts</div>
+                          <div style={{
+                            width: "100%",
+                            height: podiumH,
+                            borderRadius: "6px 6px 0 0",
+                            background: `linear-gradient(180deg, ${meta.light} 0%, ${meta.color}11 100%)`,
+                            border: `1px solid ${meta.color}44`,
+                            display: "flex",
+                            alignItems: "flex-start",
+                            justifyContent: "center",
+                            paddingTop: 6,
+                            fontSize: 16,
+                          }}>{getRankCrown(miniRank)}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div style={{ fontSize: 9, color: "#2A4060", textAlign: "center", marginTop: 6 }}>
+                    {weeklyMiniLeague.matchesCount} match{weeklyMiniLeague.matchesCount === 1 ? "" : "es"} counted · Fixture date in this IST week
                   </div>
                 </div>
               )}
