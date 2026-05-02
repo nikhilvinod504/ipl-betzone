@@ -926,7 +926,34 @@ function parseEspnSummaryToCompletedDetail(summaryJson, fixtureMatch) {
   if (!rows.length) return null;
   const safeMeta =
     metaLine && !/invalid date|\bnan\b/i.test(metaLine) ? metaLine : "";
-  return { metaLine: safeMeta, rows, resultLine };
+  const topBatters = [];
+  const topBowlers = [];
+  const teamLeaders = summaryJson?.leaders || [];
+  for (const teamBlock of teamLeaders) {
+    const teamAbbr = teamBlock?.team?.abbreviation || "";
+    const lines = teamBlock?.linescores || [];
+    for (const ls of lines) {
+      const cats = ls?.leaders || [];
+      for (const cat of cats) {
+        const key = String(cat?.name || "").toLowerCase();
+        const first = cat?.leaders?.[0];
+        if (!first) continue;
+        const entry = {
+          team: teamAbbr,
+          name: first?.athlete?.displayName || first?.athlete?.shortName || "—",
+          value: first?.displayValue || first?.value || "",
+          label: cat?.displayName || cat?.name || "",
+        };
+        if ((key.includes("run") || key.includes("score")) && !topBatters.some(x => x.name === entry.name && x.team === entry.team)) {
+          topBatters.push(entry);
+        }
+        if ((key.includes("wicket") || key.includes("economy")) && !topBowlers.some(x => x.name === entry.name && x.team === entry.team)) {
+          topBowlers.push(entry);
+        }
+      }
+    }
+  }
+  return { metaLine: safeMeta, rows, resultLine, topBatters: topBatters.slice(0, 6), topBowlers: topBowlers.slice(0, 6) };
 }
 
 // ─── IST calendar week (Mon–Sun) for weekly mini-league ───────────────
@@ -2828,22 +2855,32 @@ export default function App() {
                     <div style={{ fontSize: 9, fontWeight: 700, color: IPL_TEAMS[match.away]?.color || "#fff" }}>{match.away}</div>
                   </div>
                 </div>
-                {status === "completed" && winner && (
-                  <div style={{ marginTop: 10 }}>
-                    <button
-                      onClick={() => setScorecardModalMatchId(match.id)}
-                      disabled={!espnCompleted}
-                      style={{
-                        ...S.btn(espnCompleted ? "#1E3A5F" : "#0A1420", espnCompleted ? "#93C5FD" : "#4A6080"),
-                        width: "100%",
-                        fontSize: 11,
-                        border: "1px solid #60A5FA44",
-                        opacity: espnCompleted ? 1 : 0.6,
-                        cursor: espnCompleted ? "pointer" : "not-allowed",
-                      }}
-                    >
-                      {espnCompleted ? "📄 View ESPN Scorecard" : "📄 Scorecard loading..."}
-                    </button>
+                {status === "completed" && winner && espnCompleted && (
+                  <div
+                    onClick={() => setScorecardModalMatchId(match.id)}
+                    style={{ marginTop: 12, padding: "12px 10px", background: "#F8FAFC08", borderRadius: 10, border: "1px solid #243047", cursor: "pointer" }}
+                  >
+                    {espnCompleted.metaLine?.trim() ? (
+                      <div style={{ fontSize: 9, color: "#94A3B8", marginBottom: 10, lineHeight: 1.45 }}>{espnCompleted.metaLine}</div>
+                    ) : null}
+                    {espnCompleted.rows.map(row => (
+                      <div key={`${match.id}-${row.abbr}-${row.main}`} style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: 1 }}>
+                          <TeamBadge short={row.abbr} size={26} />
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: 11, fontWeight: row.winner ? 800 : 500, color: row.winner ? "#E2E8F8" : "#64748B" }}>{row.name}</div>
+                            {row.extra ? (
+                              <div style={{ fontSize: 9, fontWeight: row.winner ? 600 : 400, color: row.winner ? "#94A3B8" : "#64748B", marginTop: 2 }}>{row.extra}</div>
+                            ) : null}
+                          </div>
+                        </div>
+                        <div style={{ fontSize: 11, fontWeight: row.winner ? 800 : 500, color: row.winner ? "#E2E8F8" : "#64748B", flexShrink: 0, textAlign: "right" }}>{row.main}</div>
+                      </div>
+                    ))}
+                    {espnCompleted.resultLine ? (
+                      <div style={{ fontSize: 11, fontWeight: 800, color: "#E2E8F8", marginTop: 6, paddingTop: 8, borderTop: "1px solid #1E293B" }}>{espnCompleted.resultLine}</div>
+                    ) : null}
+                    <div style={{ fontSize: 9, color: "#60A5FA", marginTop: 6, fontWeight: 700 }}>Tap to open expanded scorecard ⤴</div>
                   </div>
                 )}
                 {(status === "live" || status === "completed") && (
@@ -2962,22 +2999,32 @@ export default function App() {
                     </div>
                     <TeamBadge short={match.away} size={32} />
                   </div>
-                  {!isAbandoned && winner && (
-                    <div style={{ marginBottom: 12 }}>
-                      <button
-                        onClick={() => setScorecardModalMatchId(match.id)}
-                        disabled={!completedEspnByMatch[match.id]}
-                        style={{
-                          ...S.btn(completedEspnByMatch[match.id] ? "#1E3A5F" : "#0A1420", completedEspnByMatch[match.id] ? "#93C5FD" : "#4A6080"),
-                          width: "100%",
-                          fontSize: 11,
-                          border: "1px solid #60A5FA44",
-                          opacity: completedEspnByMatch[match.id] ? 1 : 0.6,
-                          cursor: completedEspnByMatch[match.id] ? "pointer" : "not-allowed",
-                        }}
-                      >
-                        {completedEspnByMatch[match.id] ? "📄 View ESPN Scorecard" : "📄 Scorecard loading..."}
-                      </button>
+                  {!isAbandoned && winner && completedEspnByMatch[match.id] && (
+                    <div
+                      onClick={() => setScorecardModalMatchId(match.id)}
+                      style={{ marginBottom: 12, padding: "12px 10px", background: "#F8FAFC08", borderRadius: 10, border: "1px solid #243047", cursor: "pointer" }}
+                    >
+                      {completedEspnByMatch[match.id].metaLine?.trim() ? (
+                        <div style={{ fontSize: 9, color: "#94A3B8", marginBottom: 10, lineHeight: 1.45 }}>{completedEspnByMatch[match.id].metaLine}</div>
+                      ) : null}
+                      {completedEspnByMatch[match.id].rows.map(row => (
+                        <div key={`${match.id}-h-${row.abbr}-${row.main}`} style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: 1 }}>
+                            <TeamBadge short={row.abbr} size={26} />
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontSize: 11, fontWeight: row.winner ? 800 : 500, color: row.winner ? "#E2E8F8" : "#64748B" }}>{row.name}</div>
+                              {row.extra ? (
+                                <div style={{ fontSize: 9, fontWeight: row.winner ? 600 : 400, color: row.winner ? "#94A3B8" : "#64748B", marginTop: 2 }}>{row.extra}</div>
+                              ) : null}
+                            </div>
+                          </div>
+                          <div style={{ fontSize: 11, fontWeight: row.winner ? 800 : 500, color: row.winner ? "#E2E8F8" : "#64748B", flexShrink: 0, textAlign: "right" }}>{row.main}</div>
+                        </div>
+                      ))}
+                      {completedEspnByMatch[match.id].resultLine ? (
+                        <div style={{ fontSize: 11, fontWeight: 800, color: "#E2E8F8", marginTop: 6, paddingTop: 8, borderTop: "1px solid #1E293B" }}>{completedEspnByMatch[match.id].resultLine}</div>
+                      ) : null}
+                      <div style={{ fontSize: 9, color: "#60A5FA", marginTop: 6, fontWeight: 700 }}>Tap to open expanded scorecard ⤴</div>
                     </div>
                   )}
                   <div style={{ display: "flex", gap: 8 }}>
@@ -4546,6 +4593,36 @@ export default function App() {
                   {sc.resultLine ? (
                     <div style={{ fontSize: 11, fontWeight: 800, color: "#E2E8F8", marginTop: 6, paddingTop: 8, borderTop: "1px solid #1E293B" }}>{sc.resultLine}</div>
                   ) : null}
+                  {(sc.topBatters?.length > 0 || sc.topBowlers?.length > 0) && (
+                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #1E293B" }}>
+                      {sc.topBatters?.length > 0 && (
+                        <div style={{ marginBottom: 8 }}>
+                          <div style={{ fontSize: 10, color: "#4A6080", fontWeight: 700, marginBottom: 5 }}>🏏 TOP BATTERS</div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                            {sc.topBatters.map((x, i) => (
+                              <div key={`tb_${i}`} style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 11 }}>
+                                <span style={{ color: "#E2E8F8" }}>{x.team ? `${x.team} · ` : ""}{x.name}</span>
+                                <span style={{ color: "#93C5FD", fontWeight: 700 }}>{x.value}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {sc.topBowlers?.length > 0 && (
+                        <div>
+                          <div style={{ fontSize: 10, color: "#4A6080", fontWeight: 700, marginBottom: 5 }}>🎯 TOP BOWLERS</div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                            {sc.topBowlers.map((x, i) => (
+                              <div key={`tbw_${i}`} style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 11 }}>
+                                <span style={{ color: "#E2E8F8" }}>{x.team ? `${x.team} · ` : ""}{x.name}</span>
+                                <span style={{ color: "#FCA5A5", fontWeight: 700 }}>{x.value}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
