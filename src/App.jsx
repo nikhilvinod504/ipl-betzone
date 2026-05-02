@@ -742,27 +742,39 @@ async function fetchEspnMatchSummaryJson(eventId) {
 }
 
 function fmtEspnCardDate(iso) {
+  if (iso == null || iso === "") return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
   try {
-    const d = new Date(iso);
     const wd = d.toLocaleDateString("en-US", { weekday: "short" });
     const day = d.getDate();
     const mo = d.toLocaleDateString("en-US", { month: "short" });
-    const y = String(d.getFullYear()).slice(-2);
-    return `${wd}, ${day} ${mo} '${y}`;
+    const y = d.getFullYear();
+    if (!Number.isFinite(day) || !Number.isFinite(y)) return "";
+    return `${wd}, ${day} ${mo} '${String(y).slice(-2)}`;
   } catch {
     return "";
   }
 }
 
-function buildEspnCompletedMetaLine(hdr, comp) {
-  const dateStr = fmtEspnCardDate(hdr?.date);
+function pickEspnMatchDateIso(hdr, comp) {
+  return hdr?.date || comp?.date || comp?.startDate || null;
+}
+
+function buildEspnCompletedMetaLine(hdr, comp, fallbackFixtureIso) {
+  const dateStr =
+    fmtEspnCardDate(pickEspnMatchDateIso(hdr, comp)) ||
+    fmtEspnCardDate(fallbackFixtureIso);
   const venueShort = (comp?.venue?.fullName || "").split(",")[0].trim();
   const desc = String(hdr?.description || "");
   let matchBit = desc.replace(/,?\s*Indian Premier League.*$/i, "").replace(/\s+at\s+.*/i, "").trim();
   matchBit = matchBit.replace(/,\s*$/, "").trim();
-  const parts = [dateStr, "RESULT", matchBit || comp?.shortDescription, venueShort, "Indian Premier League"].filter(
-    p => p && String(p).trim()
-  );
+  const parts = [dateStr, "RESULT", matchBit || comp?.shortDescription, venueShort, "Indian Premier League"].filter(p => {
+    const s = String(p || "").trim();
+    if (!s) return false;
+    if (/invalid date|^nan$|nan,/i.test(s)) return false;
+    return true;
+  });
   return parts.join(" · ");
 }
 
@@ -775,13 +787,13 @@ function splitCricketScoreDisplay(scoreRaw) {
   return { main: s.slice(0, i).trim(), extra };
 }
 
-function parseEspnSummaryToCompletedDetail(summaryJson) {
+function parseEspnSummaryToCompletedDetail(summaryJson, fixtureMatch) {
   const hdr = summaryJson?.header;
   const comp = hdr?.competitions?.[0];
   if (!hdr || !comp) return null;
   const state = comp.status?.type?.state;
   if (state !== "post") return null;
-  const metaLine = buildEspnCompletedMetaLine(hdr, comp);
+  const metaLine = buildEspnCompletedMetaLine(hdr, comp, fixtureMatch?.rawDate);
   const resultLine = comp.status?.summary || "";
   const rows = (comp.competitors || []).map(c => {
     const abbr = c.team?.abbreviation || "";
@@ -791,7 +803,9 @@ function parseEspnSummaryToCompletedDetail(summaryJson) {
     return { abbr, name, main, extra, winner: win };
   });
   if (!rows.length) return null;
-  return { metaLine, rows, resultLine };
+  const safeMeta =
+    metaLine && !/invalid date|\bnan\b/i.test(metaLine) ? metaLine : "";
+  return { metaLine: safeMeta, rows, resultLine };
 }
 
 // ─── Team Badge ────────────────────────────────────────────────────
@@ -1376,7 +1390,7 @@ export default function App() {
           try {
             const summary = await fetchEspnMatchSummaryJson(eid);
             if (cancelled) return;
-            const detail = parseEspnSummaryToCompletedDetail(summary);
+            const detail = parseEspnSummaryToCompletedDetail(summary, m);
             if (detail) fetched[m.id] = detail;
           } catch {
             /* fallback to local winner-only UI */
@@ -2389,7 +2403,9 @@ export default function App() {
                 </div>
                 {status === "completed" && winner && espnCompleted && (
                   <div style={{ marginTop: 12, padding: "12px 10px", background: "#F8FAFC08", borderRadius: 10, border: "1px solid #243047" }}>
-                    <div style={{ fontSize: 9, color: "#94A3B8", marginBottom: 10, lineHeight: 1.45 }}>{espnCompleted.metaLine}</div>
+                    {espnCompleted.metaLine?.trim() ? (
+                      <div style={{ fontSize: 9, color: "#94A3B8", marginBottom: 10, lineHeight: 1.45 }}>{espnCompleted.metaLine}</div>
+                    ) : null}
                     {espnCompleted.rows.map(row => (
                       <div key={`${match.id}-${row.abbr}-${row.main}`} style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: 1 }}>
@@ -2521,7 +2537,9 @@ export default function App() {
                   </div>
                   {!isAbandoned && winner && completedEspnByMatch[match.id] && (
                     <div style={{ marginBottom: 12, padding: "12px 10px", background: "#F8FAFC08", borderRadius: 10, border: "1px solid #243047" }}>
-                      <div style={{ fontSize: 9, color: "#94A3B8", marginBottom: 10, lineHeight: 1.45 }}>{completedEspnByMatch[match.id].metaLine}</div>
+                      {completedEspnByMatch[match.id].metaLine?.trim() ? (
+                        <div style={{ fontSize: 9, color: "#94A3B8", marginBottom: 10, lineHeight: 1.45 }}>{completedEspnByMatch[match.id].metaLine}</div>
+                      ) : null}
                       {completedEspnByMatch[match.id].rows.map(row => (
                         <div key={`${match.id}-h-${row.abbr}-${row.main}`} style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: 1 }}>
