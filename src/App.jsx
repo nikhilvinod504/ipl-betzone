@@ -540,6 +540,98 @@ function fmtMatchDate(rawDate) {
   } catch { return ""; }
 }
 
+// ─── Wikipedia IPL table → NRR (browser-safe; not Google-scraped) ───
+function normalizeWikiTeamTitle(name) {
+  return String(name || "").trim().toLowerCase();
+}
+
+function buildWikiTeamTitleLookup() {
+  const lookup = {};
+  for (const [code, meta] of Object.entries(IPL_TEAMS)) {
+    lookup[normalizeWikiTeamTitle(meta.name)] = code;
+  }
+  lookup[normalizeWikiTeamTitle("Royal Challengers Bangalore")] = "RCB";
+  lookup[normalizeWikiTeamTitle("Delhi Daredevils")] = "DC";
+  return lookup;
+}
+
+function formatNrrSigned(raw) {
+  const n = parseFloat(String(raw).replace(/^\+/, "").trim());
+  if (Number.isNaN(n)) return null;
+  const sign = n >= 0 ? "+" : "";
+  return sign + n.toFixed(3);
+}
+
+function parseNrrMapFromWikipediaPointsHtml(html) {
+  const titleToCode = buildWikiTeamTitleLookup();
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const tables = [...doc.querySelectorAll("table.wikitable")];
+
+  for (const table of tables) {
+    const headerRow = table.querySelector("tr");
+    if (!headerRow) continue;
+    const headers = [...headerRow.querySelectorAll("th")].map(th =>
+      th.textContent.replace(/\s+/g, " ").trim().toLowerCase()
+    );
+    const nrrIdx = headers.findIndex(h => h === "nrr" || h.includes("nrr"));
+    if (nrrIdx === -1) continue;
+
+    const out = {};
+    const rows = [...table.querySelectorAll("tbody tr")];
+    for (const row of rows) {
+      const teamTh = row.querySelector('th[scope="row"]');
+      if (!teamTh) continue;
+      const link = teamTh.querySelector("a");
+      const wikiTitle = (link?.getAttribute("title") || link?.textContent || teamTh.textContent || "").trim();
+      const code = titleToCode[normalizeWikiTeamTitle(wikiTitle)];
+      if (!code) continue;
+
+      const cells = [...row.children];
+      const nrrCell = cells[nrrIdx];
+      if (!nrrCell) continue;
+      const formatted = formatNrrSigned(nrrCell.textContent);
+      if (formatted) out[code] = formatted;
+    }
+    if (Object.keys(out).length >= 8) return out;
+  }
+  return {};
+}
+
+async function fetchIplNrrMapFromWikipedia() {
+  const currentYear = new Date().getFullYear();
+  const years = [currentYear, currentYear - 1, currentYear - 2];
+  const errors = [];
+  for (const year of years) {
+    const pageTitle = `${year}_Indian_Premier_League`;
+    const url = `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(pageTitle)}&prop=text&formatversion=2&format=json&origin=*`;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) {
+        errors.push(`${year}: HTTP ${res.status}`);
+        continue;
+      }
+      const data = await res.json();
+      if (data.error) {
+        errors.push(`${year}: ${data.error.info || "wiki error"}`);
+        continue;
+      }
+      const html = data?.parse?.text;
+      if (!html) {
+        errors.push(`${year}: empty response`);
+        continue;
+      }
+      const nrrMap = parseNrrMapFromWikipediaPointsHtml(html);
+      const n = Object.keys(nrrMap).length;
+      if (n >= 8) return { year, nrrMap };
+      errors.push(`${year}: parsed ${n} teams`);
+    } catch (e) {
+      errors.push(`${year}: ${e?.message || "network error"}`);
+    }
+  }
+  const tail = errors.slice(-3).join(" · ");
+  throw new Error(`Could not load NRR (${tail}). You can still type NRR manually.`);
+}
+
 // ─── Team Badge ────────────────────────────────────────────────────
 function TeamBadge({ short, size = 40 }) {
   const t = IPL_TEAMS[short];
@@ -632,6 +724,7 @@ export default function App() {
   const [adminMode, setAdminMode] = useState(false);
   const [adminTaps, setAdminTaps] = useState(0);
   const adminTimer = useRef(null);
+  const [nrrFetchBusy, setNrrFetchBusy] = useState(false);
   const activeTheme = THEME_PACKS[themeId] || THEME_PACKS.default;
   const themeTeamCode = themeId === "default" ? null : themeId.toUpperCase();
   const themeTeam = themeTeamCode ? IPL_TEAMS[themeTeamCode] : null;
@@ -3039,8 +3132,14 @@ export default function App() {
                 );
               }
 
-              const adminActive = matches.filter(m => getEffectiveStatus(m) !== "completed");
-              const adminCompleted = matches.filter(m => getEffectiveStatus(m) === "completed");
+              const adminActive = matches.filter(m => {
+                const s = getEffectiveStatus(m);
+                return s === "upcoming" || s === "live";
+              });
+              const adminFinished = matches.filter(m => {
+                const s = getEffectiveStatus(m);
+                return s === "completed" || s === "abandoned";
+              });
 
               return (
                 <>
@@ -3061,16 +3160,16 @@ export default function App() {
                       justifyContent: "space-between",
                       alignItems: "center",
                     }}>
-                      <span>✅ Completed matches — tap to expand</span>
-                      <span style={{ fontSize: 10, color: "#4A6080" }}>{adminCompleted.length}</span>
+                      <span>✅ Finished matches (done & washouts) — tap to expand</span>
+                      <span style={{ fontSize: 10, color: "#4A6080" }}>{adminFinished.length}</span>
                     </summary>
                     <div style={{ marginTop: 10 }}>
-                      {adminCompleted.length === 0 ? (
+                      {adminFinished.length === 0 ? (
                         <div style={{ ...S.card(), textAlign: "center", color: "#4A6080", fontSize: 11 }}>
-                          No completed matches yet.
+                          No finished matches yet.
                         </div>
                       ) : (
-                        adminCompleted.map(renderAdminMatchCard)
+                        adminFinished.map(renderAdminMatchCard)
                       )}
                     </div>
                   </details>
@@ -3124,17 +3223,41 @@ export default function App() {
                 notify("✅ Standings auto-calculated from match results!");
               };
 
+              async function applyNrrFromWikipedia() {
+                setNrrFetchBusy(true);
+                try {
+                  const { year, nrrMap } = await fetchIplNrrMapFromWikipedia();
+                  const updated = iplTable.map(row => {
+                    const nrr = nrrMap[row.team];
+                    return nrr != null ? { ...row, nrr } : row;
+                  });
+                  setIplTable(updated);
+                  await set(ref(db, "iplTable"), updated);
+                  notify(`✅ NRR updated from Wikipedia (${year} IPL points table)`, "success");
+                } catch (e) {
+                  notify(e?.message || "NRR fetch failed — edit manually.", "error");
+                } finally {
+                  setNrrFetchBusy(false);
+                }
+              }
+
               return (
                 <div>
-                  {/* Auto-calculate button */}
-                  <div style={{marginBottom:10,display:"flex",gap:8}}>
+                  {/* Auto-calculate + NRR fetch */}
+                  <div style={{marginBottom:10,display:"flex",gap:8,flexWrap:"wrap"}}>
                     <button onClick={syncTable}
-                      style={{flex:1,padding:"10px",borderRadius:10,border:"1px solid #22C55E55",background:"#22C55E11",color:"#22C55E",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                      style={{flex:1,minWidth:140,padding:"10px",borderRadius:10,border:"1px solid #22C55E55",background:"#22C55E11",color:"#22C55E",fontSize:12,fontWeight:700,cursor:"pointer"}}>
                       🔄 Auto-calculate from {completedMatches.length} match results
+                    </button>
+                    <button type="button" disabled={nrrFetchBusy} onClick={() => { void applyNrrFromWikipedia(); }}
+                      style={{flex:1,minWidth:140,padding:"10px",borderRadius:10,border:"1px solid #60A5FA55",background:nrrFetchBusy?"#1A3050":"#60A5FA11",color:nrrFetchBusy?"#4A6080":"#93C5FD",fontSize:12,fontWeight:700,cursor:nrrFetchBusy?"default":"pointer",opacity:nrrFetchBusy?0.65:1}}>
+                      {nrrFetchBusy ? "⏳ Fetching NRR…" : "🌐 Fetch NRR (Wikipedia)"}
                     </button>
                   </div>
                   <div style={{fontSize:9,color:"#4A6080",marginBottom:10,padding:"6px 10px",background:"#0A1420",borderRadius:8,lineHeight:1.6}}>
-                    ✅ P / W / L / NR / PTS calculated from your entered results · ✏️ Only NRR needs manual entry
+                    ✅ P / W / L / NR / PTS from your match results · 🌐 NRR tries Wikipedia for{" "}
+                    <span style={{ fontWeight: 800, color: "#93C5FD" }}>this year first</span>
+                    {" "}({new Date().getFullYear()}), then the two prior seasons if the page/table is missing; only NRR cells change. If fetch fails, edit the yellow fields manually.
                   </div>
 
                   {/* Table */}
@@ -3180,7 +3303,7 @@ export default function App() {
                       );
                     })}
                     <div style={{padding:"8px 12px",fontSize:9,color:"#2A4060",borderTop:"1px solid #0A1420",textAlign:"center"}}>
-                      P/W/L/NR/PTS auto-calculated · Only NRR (yellow) needs manual entry
+                      P/W/L/NR/PTS auto-calculated · NRR: use 🌐 Fetch or edit yellow cells manually
                     </div>
                   </div>
                 </div>
