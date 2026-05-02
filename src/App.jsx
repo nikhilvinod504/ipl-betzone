@@ -2584,9 +2584,9 @@ export default function App() {
                 )}
               </div>
 
-              {renderSection("📊 Latest Results", latestResults, true)}
               {renderSection("📅 Next 3 Days", nextThreeDays, true)}
               {renderSection("🔮 Future Games", futureGames, false)}
+              {renderSection("📊 Latest Results", latestResults, false)}
               {renderSection("✅ Older Results", olderResults, false)}
             </div>
           );
