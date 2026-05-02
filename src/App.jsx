@@ -1133,6 +1133,10 @@ export default function App() {
   const confettiTimerRef = useRef(null);
   const espnPollSnapRef = useRef({ matches: [], manualResults: {} });
   const [liveEspnByMatch, setLiveEspnByMatch] = useState({}); // matchId → { text, at }
+  const [livePulseOpen, setLivePulseOpen] = useState(false);
+  const [livePulseBusy, setLivePulseBusy] = useState(false);
+  const [livePulseLastRefreshAt, setLivePulseLastRefreshAt] = useState(null);
+  const [livePulseHistoryByMatch, setLivePulseHistoryByMatch] = useState({}); // matchId -> [{text, at}]
   const [completedEspnByMatch, setCompletedEspnByMatch] = useState({}); // matchId → { metaLine, rows, resultLine }
 
   // Firebase state
@@ -1526,6 +1530,17 @@ export default function App() {
   const liveMatches = matches.filter(m => getEffectiveStatus(m) === "live");
   espnPollSnapRef.current = { matches, manualResults };
 
+  function fmtPulseAgo(ts) {
+    if (!ts) return "just now";
+    const sec = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+    if (sec < 5) return "just now";
+    if (sec < 60) return `${sec}s ago`;
+    const min = Math.floor(sec / 60);
+    if (min < 60) return `${min}m ago`;
+    const hr = Math.floor(min / 60);
+    return `${hr}h ago`;
+  }
+
   const liveEspnPollKey = useMemo(
     () =>
       matches
@@ -1546,53 +1561,85 @@ export default function App() {
     [matches, manualResults]
   );
 
+  async function refreshLiveEspnNow(opts = {}) {
+    const { markBusy = false } = opts;
+    if (!liveEspnPollKey) {
+      setLiveEspnByMatch({});
+      setLivePulseHistoryByMatch({});
+      return;
+    }
+    if (markBusy) setLivePulseBusy(true);
+    const now = Date.now();
+    const { matches: ms, manualResults: mr } = espnPollSnapRef.current;
+    const lm = ms.filter(m => {
+      const manual = mr[fbKey(m.id)];
+      return (manual?.status || m.status) === "live";
+    });
+    if (lm.length === 0) {
+      setLiveEspnByMatch({});
+      setLivePulseHistoryByMatch({});
+      if (markBusy) setLivePulseBusy(false);
+      return;
+    }
+    const lmIds = new Set(lm.map(x => x.id));
+    try {
+      const data = await fetchEspnIplScoreboardJson();
+      const events = data.events || [];
+      const next = {};
+      for (const m of lm) {
+        const manualRow = mr[fbKey(m.id)];
+        const ev = pickEspnEventForMatch(m, events, manualRow);
+        if (ev && espnMatchIsLiveOrFinished(ev)) {
+          const text = formatEspnEventScoreLine(ev);
+          if (text) next[m.id] = { text, at: now };
+        }
+      }
+      setLiveEspnByMatch(prev => {
+        const out = {};
+        for (const id of Object.keys(prev)) {
+          if (lmIds.has(id)) out[id] = prev[id];
+        }
+        for (const [id, v] of Object.entries(next)) out[id] = v;
+        setLivePulseHistoryByMatch(prevHistory => {
+          const merged = {};
+          for (const id of Object.keys(out)) {
+            const item = out[id];
+            const prevItem = prev[id];
+            const old = prevHistory[id] || [];
+            if (item?.text && (!prevItem || prevItem.text !== item.text)) {
+              merged[id] = [{ text: item.text, at: item.at }, ...old].slice(0, 6);
+            } else {
+              merged[id] = old.slice(0, 6);
+            }
+          }
+          return merged;
+        });
+        return out;
+      });
+      setLivePulseLastRefreshAt(now);
+    } catch {
+      setLiveEspnByMatch(prev => {
+        const out = {};
+        for (const id of Object.keys(prev)) {
+          if (lmIds.has(id)) out[id] = prev[id];
+        }
+        return out;
+      });
+    } finally {
+      if (markBusy) setLivePulseBusy(false);
+    }
+  }
+
   useEffect(() => {
     if (!liveEspnPollKey) {
       setLiveEspnByMatch({});
+      setLivePulseHistoryByMatch({});
       return;
     }
     let cancelled = false;
     async function tick() {
-      const { matches: ms, manualResults: mr } = espnPollSnapRef.current;
-      const lm = ms.filter(m => {
-        const manual = mr[fbKey(m.id)];
-        return (manual?.status || m.status) === "live";
-      });
-      if (lm.length === 0) return;
-      const lmIds = new Set(lm.map(x => x.id));
-      try {
-        const data = await fetchEspnIplScoreboardJson();
-        if (cancelled) return;
-        const events = data.events || [];
-        const next = {};
-        for (const m of lm) {
-          const manualRow = mr[fbKey(m.id)];
-          const ev = pickEspnEventForMatch(m, events, manualRow);
-          if (ev && espnMatchIsLiveOrFinished(ev)) {
-            const text = formatEspnEventScoreLine(ev);
-            if (text) next[m.id] = { text, at: Date.now() };
-          }
-        }
-        setLiveEspnByMatch(prev => {
-          const out = {};
-          for (const id of Object.keys(prev)) {
-            if (lmIds.has(id)) out[id] = prev[id];
-          }
-          for (const [id, v] of Object.entries(next)) {
-            out[id] = v;
-          }
-          return out;
-        });
-      } catch {
-        if (cancelled) return;
-        setLiveEspnByMatch(prev => {
-          const out = {};
-          for (const id of Object.keys(prev)) {
-            if (lmIds.has(id)) out[id] = prev[id];
-          }
-          return out;
-        });
-      }
+      if (cancelled) return;
+      await refreshLiveEspnNow();
     }
     tick();
     const id = setInterval(tick, 30000);
@@ -1601,6 +1648,21 @@ export default function App() {
       clearInterval(id);
     };
   }, [liveEspnPollKey]);
+
+  useEffect(() => {
+    if (!livePulseOpen || !liveEspnPollKey) return;
+    let cancelled = false;
+    async function tick() {
+      if (cancelled) return;
+      await refreshLiveEspnNow();
+    }
+    tick();
+    const id = setInterval(tick, 15000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [livePulseOpen, liveEspnPollKey]);
 
   useEffect(() => {
     if (!completedEspnPollKey) {
@@ -2211,39 +2273,121 @@ export default function App() {
 
       {/* Live Match Banner */}
       {liveMatches.length > 0 && (
-        <div style={{ background: "#7F1D1D22", borderBottom: "1px solid #EF444433", padding: "8px 18px" }}>
-          <div style={{ maxWidth: 640, margin: "0 auto", display: "flex", alignItems: "flex-start", gap: 10 }}>
-            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#EF4444", animation: "pulse 1.2s infinite", marginTop: 4, flexShrink: 0 }} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ fontSize: 12, color: "#EF4444", fontWeight: 700 }}>LIVE</span>
-              <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 8 }}>
-                {liveMatches.map(m => {
-                  const row = liveEspnByMatch[m.id];
-                  return (
-                    <div key={m.id} style={{ fontSize: 11, color: "#FCA5A5", lineHeight: 1.35 }}>
-                      <span style={{ fontWeight: 800 }}>{m.home} vs {m.away}</span>
-                      {row?.text && (
-                        <div style={{ marginTop: 3, color: "#FECDD3", fontSize: 10, fontWeight: 600, wordBreak: "break-word" }}>
-                          {row.text}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+        <>
+          <div
+            onClick={() => setLivePulseOpen(true)}
+            style={{ background: "#7F1D1D22", borderBottom: "1px solid #EF444433", padding: "8px 18px", cursor: "pointer" }}
+          >
+            <div style={{ maxWidth: 640, margin: "0 auto", display: "flex", alignItems: "flex-start", gap: 10 }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#EF4444", animation: "pulse 1.2s infinite", marginTop: 4, flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ fontSize: 12, color: "#EF4444", fontWeight: 700 }}>LIVE</span>
+                <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 8 }}>
+                  {liveMatches.map(m => {
+                    const row = liveEspnByMatch[m.id];
+                    return (
+                      <div key={m.id} style={{ fontSize: 11, color: "#FCA5A5", lineHeight: 1.35 }}>
+                        <span style={{ fontWeight: 800 }}>{m.home} vs {m.away}</span>
+                        {row?.text && (
+                          <div style={{ marginTop: 3, color: "#FECDD3", fontSize: 10, fontWeight: 600, wordBreak: "break-word" }}>
+                            {row.text}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{ marginTop: 6, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                  {liveMatches.some(m => liveEspnByMatch[m.id]?.text) ? (
+                    <div style={{ fontSize: 8, color: "#6B7280" }}>Scores from ESPN · refreshes every 30s</div>
+                  ) : (
+                    <div />
+                  )}
+                  <div style={{ fontSize: 9, color: "#FCA5A5", fontWeight: 800 }}>Tap for Live Pulse ▴</div>
+                </div>
               </div>
-              {liveMatches.some(m => liveEspnByMatch[m.id]?.text) && (
-                <div style={{ marginTop: 6, fontSize: 8, color: "#6B7280" }}>Scores from ESPN · refreshes every 30s</div>
-              )}
             </div>
           </div>
-        </div>
+
+          {livePulseOpen && (
+            <div
+              onClick={() => setLivePulseOpen(false)}
+              style={{ position: "fixed", inset: 0, background: "#020617CC", zIndex: 9997, display: "flex", alignItems: "flex-end", justifyContent: "center", padding: 10 }}
+            >
+              <div
+                onClick={e => e.stopPropagation()}
+                style={{ width: "100%", maxWidth: 640, maxHeight: "82vh", overflowY: "auto", background: "#0D1828", border: "1px solid #1A3050", borderRadius: 16, padding: 14, boxShadow: "0 -8px 30px #000A" }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
+                  <div>
+                    <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 14, color: "#EF4444", fontWeight: 800 }}>🔴 LIVE PULSE</div>
+                    <div style={{ fontSize: 10, color: "#4A6080", marginTop: 2 }}>
+                      {liveMatches.length} live match{liveMatches.length === 1 ? "" : "es"} · last refresh {livePulseLastRefreshAt ? fmtPulseAgo(livePulseLastRefreshAt) : "just now"}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <button
+                      onClick={() => refreshLiveEspnNow({ markBusy: true })}
+                      disabled={livePulseBusy}
+                      style={{ ...S.btn("#1E3A5F", "#93C5FD"), fontSize: 11, padding: "7px 10px", opacity: livePulseBusy ? 0.6 : 1 }}
+                    >
+                      {livePulseBusy ? "Refreshing..." : "↻ Refresh"}
+                    </button>
+                    <button
+                      onClick={() => setLivePulseOpen(false)}
+                      style={{ width: 30, height: 30, borderRadius: "50%", border: "1px solid #1A3050", background: "#0A1420", color: "#94A3B8", cursor: "pointer", fontSize: 16, lineHeight: "30px" }}
+                      aria-label="Close live pulse"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {liveMatches.map(m => {
+                    const row = liveEspnByMatch[m.id];
+                    const hist = livePulseHistoryByMatch[m.id] || [];
+                    return (
+                      <div key={`pulse_${m.id}`} style={{ background: "#0A1420", border: "1px solid #1A3050", borderRadius: 12, padding: 12 }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
+                          <div style={{ fontSize: 12, color: "#E2E8F8", fontWeight: 800 }}>{m.home} vs {m.away}</div>
+                          <div style={{ fontSize: 9, color: "#6B7280" }}>
+                            {row?.at ? `Updated ${fmtPulseAgo(row.at)}` : "Waiting for feed..."}
+                          </div>
+                        </div>
+                        <div style={{ fontSize: 12, color: "#FECDD3", lineHeight: 1.4, fontWeight: 700, marginBottom: 8 }}>
+                          {row?.text || "Live feed not available yet for this match."}
+                        </div>
+                        {hist.length > 0 && (
+                          <div style={{ borderTop: "1px solid #1A3050", paddingTop: 8 }}>
+                            <div style={{ fontSize: 9, color: "#4A6080", fontWeight: 700, marginBottom: 5 }}>RECENT FEED UPDATES</div>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                              {hist.map((h, i) => (
+                                <div key={`${m.id}_hist_${i}`} style={{ fontSize: 10, color: "#93C5FD", lineHeight: 1.35 }}>
+                                  <span style={{ color: "#4A6080", marginRight: 6 }}>{fmtLogTime(h.at)}</span>
+                                  {h.text}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{ fontSize: 9, color: "#2A4060", textAlign: "center", marginTop: 10 }}>
+                  Auto-refreshes every 15s while open · Tap outside to close
+                </div>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* Tabs */}
       <div style={{ ...S.tabBar, maxWidth: "none" }}>
         <div style={{ maxWidth: 640, margin: "0 auto", display: "flex", flex: 1 }}>
           {TABS.map(t => {
-            // Count unread chat messages not sent by current user
             const unread = t.id === "chat" && tab !== "chat"
               ? chatMessages.filter(m => m.timestamp > lastSeenChat && m.sender !== chatSender).length
               : 0;
@@ -2337,7 +2481,6 @@ export default function App() {
                 const podiumHeights = { 1: 170, 2: 140, 3: 110 };
                 const podiumH = podiumHeights[rank] || 110;
                 const meta = PLAYER_META[player];
-                // Size based on rank — tied players get same size
                 const isTop = rank === 1;
                 const emojiSize = isTop ? 32 : 22;
                 const nameSize = isTop ? 15 : 12;
