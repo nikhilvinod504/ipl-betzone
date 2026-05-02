@@ -1667,12 +1667,11 @@ export default function App() {
   const completedMatches = matches.filter(m => getEffectiveStatus(m) === "completed" || getEffectiveStatus(m) === "abandoned");
   const completedLeagueMatches = completedMatches.filter(isLeagueStageMatch);
 
-  /** Last 5 league results for a franchise (oldest→newest): W / L / wash — playoffs excluded */
+  /** Last 5 league results for a franchise (newest→oldest, left→right): W / L / wash — playoffs excluded */
   function getIplTeamFormLast5(teamCode) {
     const involved = completedLeagueMatches.filter(m => m.home === teamCode || m.away === teamCode)
       .sort((a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime())
-      .slice(0, 5)
-      .reverse();
+      .slice(0, 5);
     const cells = involved.map(match => {
       const status = getEffectiveStatus(match);
       if (status === "abandoned") return "wash";
@@ -1680,16 +1679,15 @@ export default function App() {
       if (!w) return "skip";
       return w === teamCode ? "W" : "L";
     });
-    while (cells.length < 5) cells.unshift("skip");
+    while (cells.length < 5) cells.push("skip");
     return cells;
   }
 
-  /** Last 5 completed fixtures (oldest→newest): W/L on winner pick, wash, or skip if no pick */
+  /** Last 5 completed fixtures (newest→oldest, left→right): W/L on winner pick, wash, or skip if no pick */
   function getPlayerFormLast5(player) {
     const seq = [...completedMatches]
       .sort((a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime())
-      .slice(0, 5)
-      .reverse();
+      .slice(0, 5);
     return seq.map(match => {
       const status = getEffectiveStatus(match);
       if (status === "abandoned") return "wash";
