@@ -19,6 +19,31 @@ const db = getDatabase(firebaseApp);
 
 const CHAT_SCROLL_TOP_KEY = "betzone_chatScrollTop";
 
+/** CSS animation value when motion is OK vs reduced-motion users */
+function uxMotion(enabled, cssWhenEnabled) {
+  return enabled ? cssWhenEnabled : "none";
+}
+
+function usePrefersReducedMotion() {
+  const [reduce, setReduce] = useState(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return false;
+    try { return window.matchMedia("(prefers-reduced-motion: reduce)").matches; }
+    catch { return false; }
+  });
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const onChange = () => setReduce(mq.matches);
+    if (mq.addEventListener) mq.addEventListener("change", onChange);
+    else mq.addListener(onChange);
+    setReduce(mq.matches);
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener("change", onChange);
+      else mq.removeListener(onChange);
+    };
+  }, []);
+  return reduce;
+}
+
 /** League matches in schedule — must match length of getLeagueSchedule() */
 const IPL_LEAGUE_MATCH_COUNT = 70;
 
@@ -571,7 +596,8 @@ const S = {
     fontWeight: 700,
     fontSize: 13,
     cursor: "pointer",
-    transition: "opacity .15s",
+    transition: "opacity .15s, transform .09s ease, box-shadow .12s ease",
+    willChange: "transform",
   }),
   pill: (active, accentColor) => ({
     flex: 1,
@@ -583,7 +609,8 @@ const S = {
     fontWeight: 700,
     fontSize: 13,
     cursor: "pointer",
-    transition: "all .18s",
+    transition: "all .18s, transform .09s ease, box-shadow .12s ease",
+    willChange: "transform",
   }),
 };
 
@@ -1023,7 +1050,7 @@ function TeamBadge({ short, size = 40 }) {
 }
 
 // ─── Notification ──────────────────────────────────────────────────
-function Toast({ msg, type }) {
+function Toast({ msg, type, reduceMotion }) {
   return (
     <div style={{
       position: "fixed", top: 18, left: "50%", transform: "translateX(-50%)",
@@ -1032,7 +1059,7 @@ function Toast({ msg, type }) {
       color: "#fff", padding: "11px 22px", borderRadius: 14,
       fontSize: 13, fontWeight: 600,
       boxShadow: "0 6px 30px #000c", maxWidth: 340, textAlign: "center",
-      animation: "slideDown .25s ease",
+      animation: uxMotion(!reduceMotion, "bzToastIn .32s cubic-bezier(.22,1,.36,1) both"),
     }}>
       {msg}
     </div>
@@ -1123,6 +1150,9 @@ function getPlaceholderMatches() { return getLeagueSchedule(); }
 
 // ─── Main App ──────────────────────────────────────────────────────
 export default function App() {
+  const reduceMotion = usePrefersReducedMotion();
+  const uxMotionOn = !reduceMotion;
+
   const [themeId, setThemeId] = useState(() => {
     try { return localStorage.getItem("betzone_theme") || "default"; } catch { return "default"; }
   });
@@ -1143,6 +1173,9 @@ export default function App() {
   const [longPressMsg, setLongPressMsg] = useState(null); // msgId showing context menu
   const longPressTimer = useRef(null);
   const chatScrollRef = useRef(null);
+  const prevChatTailRef = useRef({ len: 0, lastId: null });
+  const chatPulseTimersRef = useRef({});
+  const [chatPulseById, setChatPulseById] = useState({});
   const chatScrollSaveTimer = useRef(null);
   const prevTabRef = useRef(tab);
   const pendingChatScrollRestore = useRef(false);
@@ -1200,8 +1233,20 @@ export default function App() {
 
   // Cricket API state
   const [loading, setLoading] = useState(true);
+  const [contentBootAnim, setContentBootAnim] = useState(false);
   const [apiError, setApiError] = useState(null); // kept for compatibility
   const [lastFetched, setLastFetched] = useState(null); // kept for compatibility
+
+  useEffect(() => {
+    if (loading) {
+      setContentBootAnim(false);
+      return;
+    }
+    if (reduceMotion) return;
+    setContentBootAnim(true);
+    const tid = window.setTimeout(() => setContentBootAnim(false), 520);
+    return () => window.clearTimeout(tid);
+  }, [loading, reduceMotion]);
 
   // Admin
   const [adminMode, setAdminMode] = useState(false);
@@ -1266,6 +1311,32 @@ export default function App() {
       try { localStorage.setItem("betzone_lastSeenChat", now.toString()); } catch {}
     }
   }, [selectedPlayer, tab]);
+
+  // Brief highlight when a new chat message lands (Firebase tail changes)
+  useEffect(() => {
+    if (reduceMotion || chatMessages.length === 0) {
+      prevChatTailRef.current = {
+        len: chatMessages.length,
+        lastId: chatMessages.length ? chatMessages[chatMessages.length - 1].id : null,
+      };
+      return;
+    }
+    const last = chatMessages[chatMessages.length - 1];
+    const prev = prevChatTailRef.current;
+    const isAppend = prev.len > 0 && last && last.id !== prev.lastId;
+    prevChatTailRef.current = { len: chatMessages.length, lastId: last?.id ?? null };
+    if (!isAppend || last?.id == null) return;
+    setChatPulseById(p => ({ ...p, [last.id]: true }));
+    clearTimeout(chatPulseTimersRef.current[last.id]);
+    chatPulseTimersRef.current[last.id] = window.setTimeout(() => {
+      setChatPulseById(p => {
+        const n = { ...p };
+        delete n[last.id];
+        return n;
+      });
+      delete chatPulseTimersRef.current[last.id];
+    }, 1100);
+  }, [chatMessages, reduceMotion]);
 
   // Persist chat scroll position per device (localStorage); restore when opening Chat tab
   useLayoutEffect(() => {
@@ -1358,6 +1429,7 @@ export default function App() {
   }, [themeId]);
 
   function launchConfetti() {
+    if (reduceMotion) return;
     clearTimeout(confettiTimerRef.current);
     const emojis = ["🎉", "✨", "🏏", "🎊", "🥳", "⭐"];
     const pieces = Array.from({ length: 42 }, (_, i) => ({
@@ -2202,20 +2274,66 @@ export default function App() {
           0% { transform: translate3d(0, -12vh, 0) rotate(0deg); opacity: 1; }
           100% { transform: translate3d(var(--drift, 0px), 105vh, 0) rotate(var(--rot, 180deg)); opacity: 0; }
         }
+        @keyframes bzBackdropIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes bzSheetUp {
+          from { opacity: 0; transform: translate3d(0, 100%, 0); }
+          to { opacity: 1; transform: translate3d(0, 0, 0); }
+        }
+        @keyframes bzSheetUpDense {
+          from { opacity: 0; transform: translate3d(0, 16px, 0); }
+          to { opacity: 1; transform: translate3d(0, 0, 0); }
+        }
+        @keyframes bzPopIn {
+          from { opacity: 0; transform: scale(0.94); }
+          to { opacity: 1; transform: scale(1); }
+        }
+        @keyframes bzFadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes bzFadeInUp {
+          from { opacity: 0; transform: translate3d(0, 10px, 0); }
+          to { opacity: 1; transform: translate3d(0, 0, 0); }
+        }
+        @keyframes bzToastIn {
+          from { opacity: 0; transform: translateX(-50%) translateY(-10px) scale(0.98); }
+          to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+        }
+        @keyframes bzLiveStripIn {
+          from { opacity: 0; transform: translate3d(0, -10px, 0); }
+          to { opacity: 1; transform: translate3d(0, 0, 0); }
+        }
+        @keyframes bzLiveDot {
+          0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.55); }
+          50% { opacity: 0.75; transform: scale(1.15); box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+        }
+        @keyframes bzChatBubbleIn {
+          from { opacity: 0; transform: translate3d(0, 8px, 0); }
+          to { opacity: 1; transform: translate3d(0, 0, 0); }
+        }
+        @keyframes bzShimmerLoader {
+          0% { opacity: 0.55; transform: scale(1); filter: saturate(1); }
+          50% { opacity: 1; transform: scale(1.06); filter: saturate(1.08); }
+          100% { opacity: 0.55; transform: scale(1); filter: saturate(1); }
+        }
+        .bz-scorecard-hit { transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease; }
+        .bz-scorecard-hit:active { transform: scale(0.992); }
+        .bz-tab {
+          transition: color 0.2s ease, border-color 0.2s ease, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        .bz-tab-active { transform: translateY(-1px); }
+        button:not(:disabled):active { transform: scale(0.985); transition: transform 0.07s ease, opacity 0.07s ease; }
         ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: #060D1A; } ::-webkit-scrollbar-thumb { background: #1A3050; border-radius: 4px; }
       `}</style>
 
-      {toast && <Toast msg={toast.msg} type={toast.type} />}
+      {toast && <Toast msg={toast.msg} type={toast.type} reduceMotion={reduceMotion} />}
       {confettiPieces.length > 0 && (
         <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 9998, overflow: "hidden" }}>
-          {confettiPieces.map(piece => (
+            {confettiPieces.map(piece => (
             <span key={piece.id} style={{
               position: "absolute",
               left: `${piece.left}%`,
               top: "-10vh",
               fontSize: piece.size,
               opacity: 0.95,
-              animation: `confettiDrop ${piece.duration}s linear ${piece.delay}s forwards`,
+              animation: reduceMotion ? "none" : `confettiDrop ${piece.duration}s linear ${piece.delay}s forwards`,
               "--drift": `${piece.drift}px`,
               "--rot": `${piece.rotate}deg`,
             }}>
@@ -2300,9 +2418,14 @@ export default function App() {
 
       {/* Live Match Banner */}
       {liveMatches.length > 0 && (
-        <div style={{ background: "#7F1D1D22", borderBottom: "1px solid #EF444433", padding: "8px 18px" }}>
+        <div style={{
+          background: "#7F1D1D22",
+          borderBottom: "1px solid #EF444433",
+          padding: "8px 18px",
+          animation: uxMotion(uxMotionOn, "bzLiveStripIn 0.42s cubic-bezier(.22,1,.36,1) both"),
+        }}>
           <div style={{ maxWidth: 640, margin: "0 auto", display: "flex", alignItems: "flex-start", gap: 10 }}>
-            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#EF4444", animation: "pulse 1.2s infinite", marginTop: 4, flexShrink: 0 }} />
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#EF4444", animation: uxMotion(uxMotionOn, "bzLiveDot 1.55s ease-in-out infinite"), marginTop: 4, flexShrink: 0 }} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <span style={{ fontSize: 12, color: "#EF4444", fontWeight: 700 }}>LIVE</span>
               <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 8 }}>
@@ -2336,8 +2459,14 @@ export default function App() {
               ? chatMessages.filter(m => m.timestamp > lastSeenChat && m.sender !== chatSender).length
               : 0;
             return (
-              <button key={t.id} onClick={() => setTab(t.id)} style={{ ...S.tab(tab === t.id), position: "relative" }}>
-                <span style={{ animation: unread > 0 ? "blink 1.2s ease-in-out infinite" : "none" }}>
+              <button
+                key={t.id}
+                type="button"
+                className={`bz-tab${tab === t.id ? " bz-tab-active" : ""}`}
+                onClick={() => setTab(t.id)}
+                style={{ ...S.tab(tab === t.id), position: "relative" }}
+              >
+                <span style={{ animation: unread > 0 && !reduceMotion ? "blink 1.2s ease-in-out infinite" : "none" }}>
                   {t.label}
                 </span>
                 {unread > 0 && (
@@ -2347,7 +2476,7 @@ export default function App() {
                     fontSize: 8, fontWeight: 800,
                     width: 14, height: 14, borderRadius: "50%",
                     display: "flex", alignItems: "center", justifyContent: "center",
-                    animation: "blink 1.2s ease-in-out infinite",
+                    animation: reduceMotion ? "none" : "blink 1.2s ease-in-out infinite",
                     border: "1px solid #060D1A",
                   }}>
                     {unread > 9 ? "9+" : unread}
@@ -2360,7 +2489,12 @@ export default function App() {
       </div>
 
       {/* Content */}
-      <div style={{ maxWidth: 640, margin: "0 auto", padding: "16px 14px 90px" }}>
+      <div style={{
+        maxWidth: 640,
+        margin: "0 auto",
+        padding: "16px 14px 90px",
+        animation: contentBootAnim ? uxMotion(uxMotionOn, "bzFadeIn 0.42s cubic-bezier(.22,1,.36,1) both") : "none",
+      }}>
         {!loading && shouldShowBetReminder && (
           <div style={{ ...S.card("#EF444433"), borderLeft: "3px solid #EF4444", marginBottom: 14 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
@@ -2402,7 +2536,7 @@ export default function App() {
         {/* ── LOADING ── */}
         {loading && (
           <div style={{ textAlign: "center", padding: 60, color: "#4A6080" }}>
-            <div style={{ fontSize: 36, marginBottom: 12, animation: "pulse 1s infinite" }}>🏏</div>
+            <div style={{ fontSize: 36, marginBottom: 12, animation: uxMotion(!reduceMotion, "bzShimmerLoader 1.35s ease-in-out infinite") }}>🏏</div>
             <div style={{ fontWeight: 700 }}>Loading IPL 2026 schedule…</div>
           </div>
         )}
@@ -2419,7 +2553,7 @@ export default function App() {
 
             {/* Podium — heights based on actual rank, ties share same height */}
             <div style={{ display: "flex", justifyContent: "center", alignItems: "flex-end", gap: 10, marginBottom: 24 }}>
-              {[1, 0, 2].map(idx => {
+              {[1, 0, 2].map((idx, slotIdx) => {
                 const player = ranked[idx];
                 const rank = getRank(player);
                 const podiumHeights = { 1: 170, 2: 140, 3: 110 };
@@ -2429,8 +2563,9 @@ export default function App() {
                 const emojiSize = isTop ? 32 : 22;
                 const nameSize = isTop ? 15 : 12;
                 const ptsSize  = isTop ? 30 : 22;
+                const enterStagger = uxMotion(uxMotionOn && !rankFlash[player], `bzFadeInUp 0.45s cubic-bezier(.22,1,.36,1) ${slotIdx * 0.08}s both`);
                 return (
-                  <div key={player} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, animation: rankFlash[player] ? "rankPulse .8s ease-in-out 2" : "none" }}>
+                  <div key={player} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, animation: rankFlash[player] ? "rankPulse .8s ease-in-out 2" : enterStagger }}>
                     <div style={{ fontSize: emojiSize }}>{meta.emoji}</div>
                     <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: nameSize, color: meta.color }}>{player}</div>
                     <div style={{ fontSize: ptsSize, fontWeight: 900, color: "#FFD700", lineHeight: 1 }}>{pts[player]}</div>
@@ -2451,8 +2586,9 @@ export default function App() {
               const meta = PLAYER_META[player];
               const maxPts = Math.max(...Object.values(pts), 1);
               const pct = Math.round((pts[player] / maxPts) * 100);
+              const rowEnter = uxMotion(uxMotionOn && !rankFlash[player], `bzFadeInUp 0.38s cubic-bezier(.22,1,.36,1) ${Math.min(i, 5) * 0.045}s both`);
               return (
-                <div key={player} style={{ ...S.card(meta.color + "44"), position: "relative", overflow: "hidden", animation: rankFlash[player] ? "rankPulse .8s ease-in-out 2" : "none" }}>
+                <div key={player} style={{ ...S.card(meta.color + "44"), position: "relative", overflow: "hidden", animation: rankFlash[player] ? "rankPulse .8s ease-in-out 2" : rowEnter }}>
                   <div style={{ position: "absolute", top: 0, left: 0, width: `${pct}%`, height: 3, background: `linear-gradient(90deg, ${meta.color}, transparent)` }} />
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <div style={{ fontSize: 26, width: 36 }}>{getRankLabel(getRank(player))}</div>
@@ -2857,6 +2993,10 @@ export default function App() {
                 </div>
                 {status === "completed" && winner && espnCompleted && (
                   <div
+                    className="bz-scorecard-hit"
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setScorecardModalMatchId(match.id); } }}
                     onClick={() => setScorecardModalMatchId(match.id)}
                     style={{ marginTop: 12, padding: "12px 10px", background: "#F8FAFC08", borderRadius: 10, border: "1px solid #243047", cursor: "pointer" }}
                   >
@@ -2889,7 +3029,7 @@ export default function App() {
                       const pb = bets[`${match.id}__${p}`];
                       const correct = winner && pb === winner;
                       return (
-                          <span key={p} style={{ fontSize: 10, padding: "3px 8px", borderRadius: 20, background: correct ? "#14532D33" : "#0A1420", color: correct ? "#22C55E" : "#4A6080", border: `1px solid ${correct ? "#22C55E33" : "#1A3050"}`, animation: correct ? "correctPulse 1.7s ease-in-out infinite" : "none" }}>
+                          <span key={p} style={{ fontSize: 10, padding: "3px 8px", borderRadius: 20, background: correct ? "#14532D33" : "#0A1420", color: correct ? "#22C55E" : "#4A6080", border: `1px solid ${correct ? "#22C55E33" : "#1A3050"}`, animation: correct && !reduceMotion ? "correctPulse 1.7s ease-in-out infinite" : "none" }}>
                           {PLAYER_META[p].emoji} {pb || "—"}{correct ? " ✅" : ""}
                         </span>
                       );
@@ -3001,6 +3141,10 @@ export default function App() {
                   </div>
                   {!isAbandoned && winner && completedEspnByMatch[match.id] && (
                     <div
+                      className="bz-scorecard-hit"
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setScorecardModalMatchId(match.id); } }}
                       onClick={() => setScorecardModalMatchId(match.id)}
                       style={{ marginBottom: 12, padding: "12px 10px", background: "#F8FAFC08", borderRadius: 10, border: "1px solid #243047", cursor: "pointer" }}
                     >
@@ -3051,11 +3195,11 @@ export default function App() {
                         <div key={p} style={{ flex: 1, background: "#060D1A", borderRadius: 10, padding: "10px 8px", border: `1px solid ${earned > 0 ? (isAbandoned ? "#60A5FA55" : meta.color + "55") : "#1A3050"}` }}>
                           <div style={{ fontSize: 12, fontWeight: 700, color: meta.color, marginBottom: 4 }}>{meta.emoji} {p}</div>
                           {!isAbandoned && (
-                            <div style={{ fontSize: 10, color: "#4A6080" }}>Pick: <span style={{ color: winOk ? "#22C55E" : "#EF4444", fontWeight: 700, animation: winOk ? "correctPulse 1.7s ease-in-out infinite" : "none", display: "inline-block", padding: "0 2px", borderRadius: 4 }}>{pb || "—"}</span></div>
+                            <div style={{ fontSize: 10, color: "#4A6080" }}>Pick: <span style={{ color: winOk ? "#22C55E" : "#EF4444", fontWeight: 700, animation: winOk && !reduceMotion ? "correctPulse 1.7s ease-in-out infinite" : "none", display: "inline-block", padding: "0 2px", borderRadius: 4 }}>{pb || "—"}</span></div>
                           )}
                           {(tossWinner || isAbandoned) && tossHappened !== false && (
                             <div style={{ fontSize: 10, color: "#4A6080" }}>
-                              Toss: <span style={{ color: tossOk ? "#22C55E" : isAbandoned ? "#4A6080" : "#EF4444", fontWeight: 700, animation: tossOk ? "correctPulse 1.7s ease-in-out infinite" : "none", display: "inline-block", padding: "0 2px", borderRadius: 4 }}>{pt || "—"}</span>
+                              Toss: <span style={{ color: tossOk ? "#22C55E" : isAbandoned ? "#4A6080" : "#EF4444", fontWeight: 700, animation: tossOk && !reduceMotion ? "correctPulse 1.7s ease-in-out infinite" : "none", display: "inline-block", padding: "0 2px", borderRadius: 4 }}>{pt || "—"}</span>
                             </div>
                           )}
                           {isAbandoned && <div style={{ fontSize: 9, color: "#60A5FA", marginTop: 2 }}>🌧️ +1 abandon{tossOk ? " +1 toss" : ""}</div>}
@@ -3147,8 +3291,15 @@ export default function App() {
                       <YAxis domain={[0, maxPts + 2]} tick={{ fontSize:9, fill:"#4A6080" }} tickLine={false} axisLine={false} tickCount={5} />
                       <Tooltip content={<GraphTooltip />} />
                       {PLAYERS.map(p => (
-                        <Line key={p} type="monotone" dataKey={p}
-                          stroke={PLAYER_META[p].color} strokeWidth={2.5}
+                        <Line
+                          key={p}
+                          type="monotone"
+                          dataKey={p}
+                          stroke={PLAYER_META[p].color}
+                          strokeWidth={2.5}
+                          isAnimationActive={uxMotionOn}
+                          animationDuration={uxMotionOn ? 980 : 0}
+                          animationEasing="ease-out"
                           dot={{ r:4, fill:PLAYER_META[p].color, stroke:"#060D1A", strokeWidth:2 }}
                           activeDot={{ r:6, fill:PLAYER_META[p].color, stroke:"#060D1A", strokeWidth:2 }}
                         />
@@ -3867,8 +4018,9 @@ export default function App() {
                           clearTimeout(longPressTimer.current);
                         };
 
+                        const rowPulse = chatPulseById[msg.id] ? uxMotion(uxMotionOn, "bzChatPulse 1s ease-out 1 forwards") : "none";
                         return (
-                          <div key={msg.id} style={{ marginBottom:14, position:"relative" }}>
+                          <div key={msg.id} style={{ marginBottom:14, position:"relative", animation: rowPulse }}>
 
                             {/* Context menu — shown on long press */}
                             {showMenu && (
@@ -3968,7 +4120,18 @@ export default function App() {
 
               {/* Reply preview bar */}
               {replyTo && (
-                <div style={{ background:"#0A1420", border:"1px solid #1A3050", borderLeft:`3px solid ${PLAYER_META[replyTo.sender]?.color || "#4A6080"}`, borderRadius:"8px 8px 0 0", padding:"8px 12px", display:"flex", alignItems:"center", gap:8, marginBottom:-1 }}>
+                <div style={{
+                  background:"#0A1420",
+                  border:"1px solid #1A3050",
+                  borderLeft:`3px solid ${PLAYER_META[replyTo.sender]?.color || "#4A6080"}`,
+                  borderRadius:"8px 8px 0 0",
+                  padding:"8px 12px",
+                  display:"flex",
+                  alignItems:"center",
+                  gap:8,
+                  marginBottom:-1,
+                  animation: uxMotion(uxMotionOn, "bzFadeInUp .26s cubic-bezier(.22,1,.36,1) both"),
+                }}>
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ fontSize:10, fontWeight:700, color:PLAYER_META[replyTo.sender]?.color || "#4A6080", marginBottom:2 }}>
                       ↩ Replying to {replyTo.sender}
@@ -4544,11 +4707,31 @@ export default function App() {
         if (!m) return null;
         return (
           <div
-            style={{ position: "fixed", inset: 0, background: "#000000CC", zIndex: 9998, display: "flex", alignItems: "flex-end", justifyContent: "center", padding: 10 }}
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "#000000CC",
+              zIndex: 9998,
+              display: "flex",
+              alignItems: "flex-end",
+              justifyContent: "center",
+              padding: 10,
+              animation: uxMotion(uxMotionOn, "bzBackdropIn .28s ease-out forwards"),
+            }}
             onClick={() => setScorecardModalMatchId(null)}
           >
             <div
-              style={{ background: "#0D1828", border: "1px solid #1A3050", borderRadius: "18px 18px 0 0", width: "100%", maxWidth: 640, maxHeight: "85vh", overflowY: "auto", padding: 14 }}
+              style={{
+                background: "#0D1828",
+                border: "1px solid #1A3050",
+                borderRadius: "18px 18px 0 0",
+                width: "100%",
+                maxWidth: 640,
+                maxHeight: "85vh",
+                overflowY: "auto",
+                padding: 14,
+                animation: uxMotion(uxMotionOn, "bzSheetUp .42s cubic-bezier(.22,1,.36,1) forwards"),
+              }}
               onClick={e => e.stopPropagation()}
             >
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
@@ -4647,9 +4830,30 @@ export default function App() {
         }];
         const previewColor = AVATAR_COLORS[pickedColorIdx] || AVATAR_COLORS[0];
         return (
-          <div style={{ position: "fixed", inset: 0, background: "#000000DD", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "#000000DD",
+              zIndex: 9999,
+              display: "flex",
+              alignItems: "flex-end",
+              justifyContent: "center",
+              animation: uxMotion(uxMotionOn, "bzBackdropIn .28s ease-out forwards"),
+            }}
             onClick={() => setAvatarPicker(null)}>
-            <div style={{ background: "#0D1828", border: "1px solid #1A3050", borderRadius: "20px 20px 0 0", padding: 20, width: "100%", maxWidth: 480, maxHeight: "85vh", overflowY: "auto" }}
+            <div
+              style={{
+                background: "#0D1828",
+                border: "1px solid #1A3050",
+                borderRadius: "20px 20px 0 0",
+                padding: 20,
+                width: "100%",
+                maxWidth: 480,
+                maxHeight: "85vh",
+                overflowY: "auto",
+                animation: uxMotion(uxMotionOn, "bzSheetUp .42s cubic-bezier(.22,1,.36,1) forwards"),
+              }}
               onClick={e => e.stopPropagation()}>
 
               {/* Header */}
@@ -4727,8 +4931,28 @@ export default function App() {
         const m = matches.find(x => x.id === matchConfirm);
         const meta = PLAYER_META[selectedPlayer];
         return (
-          <div style={{ position: "fixed", inset: 0, background: "#000000CC", zIndex: 9998, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-            <div style={{ background: "#0D1828", border: `1px solid ${meta.color}44`, borderRadius: 20, padding: 24, maxWidth: 320, width: "100%", boxShadow: "0 20px 60px #000" }}>
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "#000000CC",
+              zIndex: 9998,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 24,
+              animation: uxMotion(uxMotionOn, "bzBackdropIn .26s ease-out forwards"),
+            }}>
+            <div style={{
+              background: "#0D1828",
+              border: `1px solid ${meta.color}44`,
+              borderRadius: 20,
+              padding: 24,
+              maxWidth: 320,
+              width: "100%",
+              boxShadow: "0 20px 60px #000",
+              animation: uxMotion(uxMotionOn, "bzPopIn .32s cubic-bezier(.22,1,.36,1) forwards"),
+            }}>
               {/* Player avatar */}
               <div style={{ textAlign: "center", marginBottom: 16 }}>
                 <div style={{ width: 64, height: 64, borderRadius: "50%", background: meta.light, border: `3px solid ${meta.color}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32, margin: "0 auto" }}>
