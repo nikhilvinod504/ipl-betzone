@@ -2890,140 +2890,193 @@ export default function App() {
               <div>4️⃣ Points update instantly on all 3 phones ✅</div>
             </div>
 
-            {/* Only show upcoming + live + recently completed */}
-            {matches.map((match, idx) => {
-              const status = getEffectiveStatus(match);
-              const manual = manualResults[fbKey(match.id)] || {};
-              const winner = getEffectiveWinner(match);
-              const isLocked = status === "live" || status === "completed";
+            {/* Active matches first; completed folded away — expand to fix results */}
+            {(() => {
+              function renderAdminMatchCard(match) {
+                const status = getEffectiveStatus(match);
+                const manual = manualResults[fbKey(match.id)] || {};
+                const winner = getEffectiveWinner(match);
+                const isLocked = status === "live" || status === "completed";
 
-              // Status pill config
-              const statusConfig = {
-                upcoming:  { label: "🕐 Upcoming",  color: "#FF6B2B", bg: "#FF6B2B18" },
-                live:      { label: "🔴 Live",      color: "#EF4444", bg: "#EF444418" },
-                completed: { label: "✅ Done",       color: "#22C55E", bg: "#22C55E18" },
-                abandoned: { label: "🌧️ Abandoned", color: "#60A5FA", bg: "#60A5FA18" },
-              }[status] || { label: status, color: "#7A90B0", bg: "#1A3050" };
+                const statusConfig = {
+                  upcoming:  { label: "🕐 Upcoming",  color: "#FF6B2B", bg: "#FF6B2B18" },
+                  live:      { label: "🔴 Live",      color: "#EF4444", bg: "#EF444418" },
+                  completed: { label: "✅ Done",       color: "#22C55E", bg: "#22C55E18" },
+                  abandoned: { label: "🌧️ Abandoned", color: "#60A5FA", bg: "#60A5FA18" },
+                }[status] || { label: status, color: "#7A90B0", bg: "#1A3050" };
 
-              return (
-                <div key={match.id} style={{ ...S.card(isLocked ? "#1A3050" : "#1A3050"), marginBottom: 10, opacity: status === "completed" ? 0.85 : 1 }}>
-
-                  {/* Match header */}
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <TeamBadge short={match.home} size={28} />
-                      <span style={{ fontSize: 11, fontWeight: 800, color: "#E2E8F8" }}>vs</span>
-                      <TeamBadge short={match.away} size={28} />
-                      <span style={{ fontSize: 12, fontWeight: 700, color: "#E2E8F8" }}>{match.home} v {match.away}</span>
+                return (
+                  <div key={match.id} style={{ ...S.card(isLocked ? "#1A3050" : "#1A3050"), marginBottom: 10, opacity: status === "completed" ? 0.85 : 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <TeamBadge short={match.home} size={28} />
+                        <span style={{ fontSize: 11, fontWeight: 800, color: "#E2E8F8" }}>vs</span>
+                        <TeamBadge short={match.away} size={28} />
+                        <span style={{ fontSize: 12, fontWeight: 700, color: "#E2E8F8" }}>{match.home} v {match.away}</span>
+                      </div>
+                      <div style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 20, background: statusConfig.bg, color: statusConfig.color }}>
+                        {statusConfig.label}
+                      </div>
                     </div>
-                    <div style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 20, background: statusConfig.bg, color: statusConfig.color }}>
-                      {statusConfig.label}
+
+                    <div style={{ fontSize: 10, color: "#2A4060", marginBottom: 10 }}>
+                      📅 {fmtMatchDate(match.rawDate)} · {fmtMatchTime(match.rawDate)} · {match.venue.split(",")[0]}
                     </div>
-                  </div>
 
-                  <div style={{ fontSize: 10, color: "#2A4060", marginBottom: 10 }}>
-                    📅 {fmtMatchDate(match.rawDate)} · {fmtMatchTime(match.rawDate)} · {match.venue.split(",")[0]}
-                  </div>
+                    {status === "completed" && winner && (
+                      <div style={{ background: "#14532D22", border: "1px solid #22C55E33", borderRadius: 8, padding: "8px 12px", marginBottom: 10, fontSize: 12, color: "#22C55E", fontWeight: 700 }}>
+                        🏆 {winner} won · {manual.tossWinner ? `🪙 Toss: ${manual.tossWinner}` : "Toss not set"}
+                      </div>
+                    )}
 
-                  {/* Winner display if done */}
-                  {status === "completed" && winner && (
-                    <div style={{ background: "#14532D22", border: "1px solid #22C55E33", borderRadius: 8, padding: "8px 12px", marginBottom: 10, fontSize: 12, color: "#22C55E", fontWeight: 700 }}>
-                      🏆 {winner} won · {manual.tossWinner ? `🪙 Toss: ${manual.tossWinner}` : "Toss not set"}
-                    </div>
-                  )}
+                    {status === "completed" && (
+                      <div style={{ marginBottom: 10, paddingTop: 10, borderTop: "1px solid #1A3050" }}>
+                        <div style={{ fontSize: 10, color: "#4A6080", marginBottom: 6, fontWeight: 700 }}>✏️ Correct result (updates points)</div>
+                        <div style={{ fontSize: 10, color: "#4A6080", marginBottom: 5, fontWeight: 700, letterSpacing: 0.3 }}>🪙 TOSS WINNER:</div>
+                        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                          {[match.home, match.away].map(team => (
+                            <button key={team}
+                              onClick={() => setManualResult(match.id, manual.winner || winner, team, "completed")}
+                              style={{ ...S.pill(manual.tossWinner === team, "#FFD700"), fontSize: 12 }}>
+                              {manual.tossWinner === team ? "✅ " : "🪙 "}{team}
+                            </button>
+                          ))}
+                        </div>
+                        <div style={{ fontSize: 10, color: "#4A6080", marginBottom: 5, fontWeight: 700, letterSpacing: 0.3 }}>🏆 MATCH WINNER:</div>
+                        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                          {[match.home, match.away].map(team => (
+                            <button key={team}
+                              onClick={() => setManualResult(match.id, team, manual.tossWinner || null, "completed")}
+                              style={{ ...S.pill(manual.winner === team, "#22C55E"), fontSize: 12 }}>
+                              {manual.winner === team ? "✅ " : "🏏 "}{team}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
-                  {/* Actions */}
-                  {status !== "completed" && (
-                    <div>
-                      {/* Lock bets button */}
-                      {status === "upcoming" && (
-                        <button onClick={() => setManualResult(match.id, null, null, "live")}
-                          style={{ ...S.btn("#7F1D1D", "#FCA5A5"), width: "100%", marginBottom: 8, fontSize: 12 }}>
-                          🔒 Lock Bets — Match Has Started
-                        </button>
-                      )}
+                    {status !== "completed" && (
+                      <div>
+                        {status === "upcoming" && (
+                          <button onClick={() => setManualResult(match.id, null, null, "live")}
+                            style={{ ...S.btn("#7F1D1D", "#FCA5A5"), width: "100%", marginBottom: 8, fontSize: 12 }}>
+                            🔒 Lock Bets — Match Has Started
+                          </button>
+                        )}
 
-                      {/* Locked state — show auto or manual lock + unlock option */}
-                      {status === "live" && (
-                        <div style={{ marginBottom: 8 }}>
-                          <div style={{ background: "#7F1D1D18", border: "1px solid #EF444433", borderRadius: 8, padding: "8px 12px", marginBottom: 6, fontSize: 11, color: "#FCA5A5" }}>
-                            {manual.autoLocked ? (
-                              <span>⚡ Auto-locked 1 hour before match · Set winner below when done</span>
-                            ) : (
-                              <span>🔴 Manually locked · Set winner below when done</span>
-                            )}
+                        {status === "live" && (
+                          <div style={{ marginBottom: 8 }}>
+                            <div style={{ background: "#7F1D1D18", border: "1px solid #EF444433", borderRadius: 8, padding: "8px 12px", marginBottom: 6, fontSize: 11, color: "#FCA5A5" }}>
+                              {manual.autoLocked ? (
+                                <span>⚡ Auto-locked 1 hour before match · Set winner below when done</span>
+                              ) : (
+                                <span>🔴 Manually locked · Set winner below when done</span>
+                              )}
+                            </div>
+                            <button onClick={() => update(ref(db, `manualResults/${fbKey(match.id)}`), {
+                                status: "upcoming",
+                                autoLocked: false,
+                              })}
+                              style={{ width: "100%", padding: "7px", borderRadius: 8, border: "1px solid #FFD70055", background: "#FFD70011", color: "#FFD700", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                              🔓 Unlock Bets (Admin Override)
+                            </button>
                           </div>
-                          {/* Admin unlock button */}
-                          <button onClick={() => update(ref(db, `manualResults/${fbKey(match.id)}`), {
-                              status: "upcoming",
-                              autoLocked: false,
-                            })}
-                            style={{ width: "100%", padding: "7px", borderRadius: 8, border: "1px solid #FFD70055", background: "#FFD70011", color: "#FFD700", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
-                            🔓 Unlock Bets (Admin Override)
+                        )}
+
+                        <div style={{ fontSize: 10, color: "#4A6080", marginBottom: 5, fontWeight: 700, letterSpacing: 0.3 }}>🪙 TOSS WINNER:</div>
+                        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                          {[match.home, match.away].map(team => (
+                            <button key={team}
+                              onClick={() => setManualResult(match.id, manual.winner || null, team, manual.status || status)}
+                              style={{ ...S.pill(manual.tossWinner === team, "#FFD700"), fontSize: 12 }}>
+                              {manual.tossWinner === team ? "✅ " : "🪙 "}{team}
+                            </button>
+                          ))}
+                        </div>
+
+                        <div style={{ fontSize: 10, color: "#4A6080", marginBottom: 5, fontWeight: 700, letterSpacing: 0.3 }}>🏆 MATCH WINNER:</div>
+                        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                          {[match.home, match.away].map(team => (
+                            <button key={team}
+                              onClick={() => setManualResult(match.id, team, manual.tossWinner || null, "completed")}
+                              style={{ ...S.pill(manual.winner === team, "#22C55E"), fontSize: 12 }}>
+                              {manual.winner === team ? "✅ " : "🏏 "}{team}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {status !== "abandoned" && status !== "completed" && (
+                      <div style={{ marginBottom: 8 }}>
+                        <div style={{ fontSize: 9, color: "#4A6080", marginBottom: 6, fontWeight: 700, letterSpacing: 0.3 }}>🌧️ MATCH ABANDONED / WASHOUT:</div>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button onClick={() => update(ref(db, `manualResults/${fbKey(match.id)}`), { status: "abandoned", abandonedWithToss: false })}
+                            style={{ flex: 1, padding: "8px", borderRadius: 8, border: "1px solid #60A5FA55", background: "#60A5FA11", color: "#60A5FA", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                            🌧️ Wash Before Toss<br/><span style={{ fontSize: 9, fontWeight: 400, color: "#4A6080" }}>+1 everyone</span>
+                          </button>
+                          <button onClick={() => update(ref(db, `manualResults/${fbKey(match.id)}`), { status: "abandoned", abandonedWithToss: true, tossWinner: manual.tossWinner || null })}
+                            style={{ flex: 1, padding: "8px", borderRadius: 8, border: "1px solid #60A5FA55", background: "#60A5FA11", color: "#60A5FA", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                            🌧️ Wash After Toss<br/><span style={{ fontSize: 9, fontWeight: 400, color: "#4A6080" }}>set toss winner below</span>
                           </button>
                         </div>
+                      </div>
+                    )}
+
+                    {status === "abandoned" && (
+                      <div style={{ background: "#60A5FA11", border: "1px solid #60A5FA44", borderRadius: 8, padding: "8px 12px", marginBottom: 8, fontSize: 11, color: "#60A5FA", fontWeight: 700 }}>
+                        🌧️ Match abandoned — {manual.abandonedWithToss ? "toss had happened (+1 toss correct, +1 all others)" : "+1 point awarded to everyone"}
+                      </div>
+                    )}
+
+                    {(manual.winner || manual.status === "live" || manual.status === "abandoned") && (
+                      <button onClick={() => set(ref(db, `manualResults/${fbKey(match.id)}`), null)}
+                        style={{ width: "100%", padding: "7px", borderRadius: 8, border: "1px solid #7F1D1D55", background: "transparent", color: "#EF444488", fontSize: 11, cursor: "pointer" }}>
+                        ↩ Reset this match
+                      </button>
+                    )}
+                  </div>
+                );
+              }
+
+              const adminActive = matches.filter(m => getEffectiveStatus(m) !== "completed");
+              const adminCompleted = matches.filter(m => getEffectiveStatus(m) === "completed");
+
+              return (
+                <>
+                  {adminActive.map(renderAdminMatchCard)}
+                  <details style={{ marginBottom: 16 }}>
+                    <summary style={{
+                      cursor: "pointer",
+                      listStyle: "none",
+                      background: "#0A1420",
+                      border: "1px solid #1A3050",
+                      borderRadius: 12,
+                      padding: "10px 12px",
+                      fontFamily: "'Syne',sans-serif",
+                      fontSize: 12,
+                      color: "#22C55E",
+                      fontWeight: 800,
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}>
+                      <span>✅ Completed matches — tap to expand</span>
+                      <span style={{ fontSize: 10, color: "#4A6080" }}>{adminCompleted.length}</span>
+                    </summary>
+                    <div style={{ marginTop: 10 }}>
+                      {adminCompleted.length === 0 ? (
+                        <div style={{ ...S.card(), textAlign: "center", color: "#4A6080", fontSize: 11 }}>
+                          No completed matches yet.
+                        </div>
+                      ) : (
+                        adminCompleted.map(renderAdminMatchCard)
                       )}
-
-                      {/* Toss winner */}
-                      <div style={{ fontSize: 10, color: "#4A6080", marginBottom: 5, fontWeight: 700, letterSpacing: 0.3 }}>🪙 TOSS WINNER:</div>
-                      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-                        {[match.home, match.away].map(team => (
-                          <button key={team}
-                            onClick={() => setManualResult(match.id, manual.winner || null, team, manual.status || status)}
-                            style={{ ...S.pill(manual.tossWinner === team, "#FFD700"), fontSize: 12 }}>
-                            {manual.tossWinner === team ? "✅ " : "🪙 "}{team}
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* Match winner */}
-                      <div style={{ fontSize: 10, color: "#4A6080", marginBottom: 5, fontWeight: 700, letterSpacing: 0.3 }}>🏆 MATCH WINNER:</div>
-                      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-                        {[match.home, match.away].map(team => (
-                          <button key={team}
-                            onClick={() => setManualResult(match.id, team, manual.tossWinner || null, "completed")}
-                            style={{ ...S.pill(manual.winner === team, "#22C55E"), fontSize: 12 }}>
-                            {manual.winner === team ? "✅ " : "🏏 "}{team}
-                          </button>
-                        ))}
-                      </div>
                     </div>
-                  )}
-
-                  {/* Abandon match button — for washouts */}
-                  {status !== "abandoned" && status !== "completed" && (
-                    <div style={{ marginBottom: 8 }}>
-                      <div style={{ fontSize: 9, color: "#4A6080", marginBottom: 6, fontWeight: 700, letterSpacing: 0.3 }}>🌧️ MATCH ABANDONED / WASHOUT:</div>
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <button onClick={() => update(ref(db, `manualResults/${fbKey(match.id)}`), { status: "abandoned", abandonedWithToss: false })}
-                          style={{ flex: 1, padding: "8px", borderRadius: 8, border: "1px solid #60A5FA55", background: "#60A5FA11", color: "#60A5FA", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
-                          🌧️ Wash Before Toss<br/><span style={{ fontSize: 9, fontWeight: 400, color: "#4A6080" }}>+1 everyone</span>
-                        </button>
-                        <button onClick={() => update(ref(db, `manualResults/${fbKey(match.id)}`), { status: "abandoned", abandonedWithToss: true, tossWinner: manual.tossWinner || null })}
-                          style={{ flex: 1, padding: "8px", borderRadius: 8, border: "1px solid #60A5FA55", background: "#60A5FA11", color: "#60A5FA", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
-                          🌧️ Wash After Toss<br/><span style={{ fontSize: 9, fontWeight: 400, color: "#4A6080" }}>set toss winner below</span>
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Abandoned status */}
-                  {status === "abandoned" && (
-                    <div style={{ background: "#60A5FA11", border: "1px solid #60A5FA44", borderRadius: 8, padding: "8px 12px", marginBottom: 8, fontSize: 11, color: "#60A5FA", fontWeight: 700 }}>
-                      🌧️ Match abandoned — {manual.abandonedWithToss ? "toss had happened (+1 toss correct, +1 all others)" : "+1 point awarded to everyone"}
-                    </div>
-                  )}
-
-                  {/* Reset button */}
-                  {(manual.winner || manual.status === "live" || manual.status === "abandoned") && (
-                    <button onClick={() => set(ref(db, `manualResults/${fbKey(match.id)}`), null)}
-                      style={{ width: "100%", padding: "7px", borderRadius: 8, border: "1px solid #7F1D1D55", background: "transparent", color: "#EF444488", fontSize: 11, cursor: "pointer" }}>
-                      ↩ Reset this match
-                    </button>
-                  )}
-                </div>
+                  </details>
+                </>
               );
-            })}
+            })()}
 
             {/* IPL Table Editor */}
             <div style={{fontFamily:"'Syne',sans-serif",fontSize:13,color:"#FFD700",fontWeight:800,margin:"16px 0 6px",letterSpacing:0.5}}>🏏 IPL TEAM STANDINGS</div>
