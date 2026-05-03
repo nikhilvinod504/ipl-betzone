@@ -193,6 +193,22 @@ const AVATAR_EMOJI_LIST = [
   "☀️","🌕","🌠","🔭","🛸","🌌","🪄","🗺️","🌊","🏔️",
 ];
 
+/** Short looping stickers (GIFs via Giphy CDN). Fallback Unicode in `emoji` for toasts & reduced-motion. */
+const ANIMATED_AVATAR_PRESETS = [
+  { id: "party", label: "Party", emoji: "🎉", url: "https://media.giphy.com/media/26u4cqiYI30juCOGY/giphy-downsized-small.gif" },
+  { id: "fire", label: "Fire", emoji: "🔥", url: "https://media.giphy.com/media/l0MYC0LajboPotTDa/giphy-downsized-small.gif" },
+  { id: "heart", label: "Love", emoji: "😍", url: "https://media.giphy.com/media/3o7abKhOpu0NwenH3O/giphy-downsized-small.gif" },
+  { id: "cool", label: "Cool", emoji: "😎", url: "https://media.giphy.com/media/l3q2K5jinAlChoCLS/giphy-downsized-small.gif" },
+  { id: "lol", label: "LOL", emoji: "😂", url: "https://media.giphy.com/media/5GoVLqeAOo6PK/giphy-downsized-small.gif" },
+  { id: "mind", label: "Wow", emoji: "🤯", url: "https://media.giphy.com/media/26ufdipCqI2lENS9O/giphy-downsized-small.gif" },
+  { id: "clap", label: "Clap", emoji: "👏", url: "https://media.giphy.com/media/nXxOjZrbnvRxm/giphy-downsized-small.gif" },
+  { id: "yes", label: "Yes!", emoji: "✅", url: "https://media.giphy.com/media/daPCSdcusAoBk/giphy-downsized-small.gif" },
+  { id: "wave", label: "Wave", emoji: "👋", url: "https://media.giphy.com/media/mGcNjsfWAjY5FQZNqo/giphy-downsized-small.gif" },
+  { id: "rocket", label: "Rocket", emoji: "🚀", url: "https://media.giphy.com/media/l46Cy1rHbQYCuuZjm/giphy-downsized-small.gif" },
+  { id: "star", label: "Sparkle", emoji: "✨", url: "https://media.giphy.com/media/ICOgUNjpvO0PC/giphy-downsized-small.gif" },
+  { id: "cat", label: "Shook", emoji: "🙀", url: "https://media.giphy.com/media/MCfhrrNN1goH6/giphy-downsized-small.gif" },
+];
+
 const AVATAR_COLORS = [
   { color: "#FF6B2B", light: "#FF6B2B18", name: "Orange" },
   { color: "#00C2FF", light: "#00C2FF18", name: "Blue" },
@@ -1066,6 +1082,80 @@ function Toast({ msg, type, reduceMotion }) {
   );
 }
 
+/** Circular frame: static emoji or looping GIF (when `meta.animUrl` and motion allowed) */
+function PlayerAvatarBubble({ meta, size, border = 2, borderColor, bgLight = true, reduceMotion, style }) {
+  const animOn = meta?.animUrl && !reduceMotion;
+  const bc = borderColor ?? meta?.color ?? "#2A4060";
+  return (
+    <div
+      style={{
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        border: `${border}px solid ${bc}`,
+        background: animOn ? "#0A1420" : (bgLight ? meta?.light : "transparent") || "#1A3050",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        overflow: "hidden",
+        flexShrink: 0,
+        ...style,
+      }}
+    >
+      {animOn ? (
+        <img
+          src={meta.animUrl}
+          alt=""
+          draggable={false}
+          loading="lazy"
+          decoding="async"
+          referrerPolicy="no-referrer"
+          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+        />
+      ) : (
+        <span style={{ fontSize: Math.round(size * 0.52), lineHeight: 1 }}>{meta?.emoji ?? "❓"}</span>
+      )}
+    </div>
+  );
+}
+
+/** Inline / tooltip: compact emoji or tiny GIF */
+function PlayerAvatarMark({ meta, size = 18, reduceMotion, style }) {
+  const animOn = meta?.animUrl && !reduceMotion;
+  if (animOn) {
+    return (
+      <span
+        style={{
+          display: "inline-flex",
+          width: size,
+          height: size,
+          borderRadius: "50%",
+          overflow: "hidden",
+          flexShrink: 0,
+          verticalAlign: "middle",
+          background: "#0A1420",
+          ...style,
+        }}
+      >
+        <img
+          src={meta.animUrl}
+          alt=""
+          draggable={false}
+          loading="lazy"
+          decoding="async"
+          referrerPolicy="no-referrer"
+          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+        />
+      </span>
+    );
+  }
+  return (
+    <span style={{ fontSize: Math.round(size * 0.85), lineHeight: 1, display: "inline-flex", verticalAlign: "middle", ...style }}>
+      {meta?.emoji ?? "❓"}
+    </span>
+  );
+}
+
 function getLeagueSchedule() {
   const m = (id, home, away, rawDate, date, time, venue, stage = "league", playoffRound = null) => ({
     id, home, away, rawDate, date, time, venue, status: "upcoming", apiWinner: null, stage,
@@ -1293,8 +1383,15 @@ export default function App() {
     const custom = customAvatars[p];
     const base = BASE_PLAYER_META[p];
     if (custom) {
-      const colorTheme = AVATAR_COLORS[custom.colorIdx] || AVATAR_COLORS[0];
-      return [p, { emoji: custom.emoji || base.emoji, color: colorTheme.color, light: colorTheme.light }];
+      const colorTheme = AVATAR_COLORS[custom.colorIdx ?? 0] || AVATAR_COLORS[0];
+      const rawU = typeof custom.animUrl === "string" ? custom.animUrl.trim() : "";
+      const animUrl = /^https:\/\/media\.giphy\.com\/media\/[^/]+\//.test(rawU) ? rawU : null;
+      return [p, {
+        emoji: custom.emoji || base.emoji,
+        ...(animUrl ? { animUrl } : {}),
+        color: colorTheme.color,
+        light: colorTheme.light,
+      }];
     }
     return [p, base];
   }));
@@ -2402,14 +2499,8 @@ export default function App() {
             {PLAYERS.map(p => (
               <div key={p} style={{ textAlign: "center", cursor: "pointer" }}
                 onClick={() => setAvatarPicker(p)}>
-                <div style={{
-                  width: 34, height: 34, borderRadius: "50%",
-                  background: PLAYER_META[p].light,
-                  border: `2px solid ${PLAYER_META[p].color}`,
-                  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15,
-                  position: "relative",
-                }}>
-                  {PLAYER_META[p].emoji}
+                <div style={{ position: "relative" }}>
+                  <PlayerAvatarBubble meta={PLAYER_META[p]} size={34} border={2} reduceMotion={reduceMotion} />
                   <div style={{ position: "absolute", bottom: -2, right: -2, fontSize: 8, background: "#060D1A", borderRadius: "50%", width: 12, height: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>✏️</div>
                 </div>
                 <div style={{ fontSize: 8, color: PLAYER_META[p].color, fontWeight: 700, marginTop: 2 }}>
@@ -2504,8 +2595,10 @@ export default function App() {
           <div style={{ ...S.card("#EF444433"), borderLeft: "3px solid #EF4444", marginBottom: 14 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
               <div>
-                <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 12, fontWeight: 800, color: "#FCA5A5" }}>
-                  ⚠️ Bet Reminder for {PLAYER_META[reminderPlayer]?.emoji} {reminderPlayer}
+                <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 12, fontWeight: 800, color: "#FCA5A5", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                  <span>⚠️ Bet Reminder for</span>
+                  {reminderPlayer && <PlayerAvatarMark meta={PLAYER_META[reminderPlayer]} size={16} reduceMotion={reduceMotion} />}
+                  <span>{reminderPlayer}</span>
                 </div>
                 <div style={{ fontSize: 11, color: "#7A90B0", marginTop: 2 }}>
                   Missing bets in {missingUpcomingBets.length} of next {nextFiveUpcoming.length} upcoming matches.
@@ -2571,7 +2664,7 @@ export default function App() {
                 const enterStagger = uxMotion(uxMotionOn && !rankFlash[player], `bzFadeInUp 0.45s cubic-bezier(.22,1,.36,1) ${slotIdx * 0.08}s both`);
                 return (
                   <div key={player} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, animation: rankFlash[player] ? "rankPulse .8s ease-in-out 2" : enterStagger }}>
-                    <div style={{ fontSize: emojiSize }}>{meta.emoji}</div>
+                    <PlayerAvatarBubble meta={meta} size={emojiSize} border={2} reduceMotion={reduceMotion} />
                     <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: nameSize, color: meta.color }}>{player}</div>
                     <div style={{ fontSize: ptsSize, fontWeight: 900, color: "#FFD700", lineHeight: 1 }}>{pts[player]}</div>
                     <div style={{ fontSize: 9, color: "#4A6080" }}>pts</div>
@@ -2597,9 +2690,7 @@ export default function App() {
                   <div style={{ position: "absolute", top: 0, left: 0, width: `${pct}%`, height: 3, background: `linear-gradient(90deg, ${meta.color}, transparent)` }} />
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <div style={{ fontSize: 26, width: 36 }}>{getRankLabel(getRank(player))}</div>
-                    <div style={{ width: 44, height: 44, borderRadius: "50%", background: meta.light, border: `2px solid ${meta.color}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>
-                      {meta.emoji}
-                    </div>
+                    <PlayerAvatarBubble meta={meta} size={44} border={2} reduceMotion={reduceMotion} />
                     <div style={{ flex: 1 }}>
                       <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 15, color: meta.color }}>{player}</div>
                       <div style={{ fontSize: 11, color: "#2A4060", marginTop: 2 }}>
@@ -2674,8 +2765,9 @@ export default function App() {
               <div style={{ fontSize: 11, color: "#4A6080", marginBottom: 8, fontWeight: 700, letterSpacing: 0.5 }}>BETTING AS:</div>
               <div style={{ display: "flex", gap: 8 }}>
                 {PLAYERS.map(p => (
-                  <button key={p} onClick={() => setSelectedPlayer(p)} style={S.pill(selectedPlayer === p, PLAYER_META[p].color)}>
-                    {PLAYER_META[p].emoji} {p}
+                  <button key={p} type="button" onClick={() => setSelectedPlayer(p)} style={{ ...S.pill(selectedPlayer === p, PLAYER_META[p].color), display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                    <PlayerAvatarMark meta={PLAYER_META[p]} size={16} reduceMotion={reduceMotion} />
+                    {p}
                   </button>
                 ))}
               </div>
@@ -2840,8 +2932,9 @@ export default function App() {
                           {PLAYERS.filter(p => p !== selectedPlayer).map(p => {
                             const pb = bets[`${match.id}__${p}`];
                             return (
-                              <div key={p} style={{ fontSize: 11, color: "#7A90B0", background: "#0A1420", padding: "4px 10px", borderRadius: 20, border: `1px solid ${pb ? PLAYER_META[p].color + "44" : "#1A3050"}` }}>
-                                {PLAYER_META[p].emoji} {pb ? <span style={{ color: PLAYER_META[p].color, fontWeight: 700 }}>{pb}</span> : <span style={{ color: "#2A4060" }}>—</span>}
+                              <div key={p} style={{ fontSize: 11, color: "#7A90B0", background: "#0A1420", padding: "4px 10px", borderRadius: 20, border: `1px solid ${pb ? PLAYER_META[p].color + "44" : "#1A3050"}`, display: "flex", alignItems: "center", gap: 4 }}>
+                                <PlayerAvatarMark meta={PLAYER_META[p]} size={14} reduceMotion={reduceMotion} />
+                                {pb ? <span style={{ color: PLAYER_META[p].color, fontWeight: 700 }}>{pb}</span> : <span style={{ color: "#2A4060" }}>—</span>}
                               </div>
                             );
                           })}
@@ -2852,8 +2945,9 @@ export default function App() {
                           {PLAYERS.filter(p => p !== selectedPlayer).map(p => {
                             const pt = tossGuesses[`${match.id}__${p}`];
                             return (
-                              <div key={p} style={{ fontSize: 11, color: "#7A90B0", background: "#0A1420", padding: "4px 10px", borderRadius: 20, border: `1px solid ${pt ? "#FFD70044" : "#1A3050"}` }}>
-                                {PLAYER_META[p].emoji} {pt ? <span style={{ color: "#FFD700", fontWeight: 700 }}>{pt}</span> : <span style={{ color: "#2A4060" }}>—</span>}
+                              <div key={p} style={{ fontSize: 11, color: "#7A90B0", background: "#0A1420", padding: "4px 10px", borderRadius: 20, border: `1px solid ${pt ? "#FFD70044" : "#1A3050"}`, display: "flex", alignItems: "center", gap: 4 }}>
+                                <PlayerAvatarMark meta={PLAYER_META[p]} size={14} reduceMotion={reduceMotion} />
+                                {pt ? <span style={{ color: "#FFD700", fontWeight: 700 }}>{pt}</span> : <span style={{ color: "#2A4060" }}>—</span>}
                               </div>
                             );
                           })}
@@ -2865,8 +2959,8 @@ export default function App() {
                         <div style={{ fontSize: 9, color: "#4A6080", fontWeight: 700, letterSpacing: 0.3 }}>🏆 WINNER PICKS:</div>
                         <div style={{ display: "flex", gap: 8 }}>
                           {PLAYERS.filter(p => p !== selectedPlayer).map(p => (
-                            <div key={p} style={{ fontSize: 11, color: "#4A6080", background: "#0A1420", padding: "4px 10px", borderRadius: 20, border: "1px solid #1A3050", letterSpacing: 2 }}>
-                              {PLAYER_META[p].emoji} •••
+                            <div key={p} style={{ fontSize: 11, color: "#4A6080", background: "#0A1420", padding: "4px 10px", borderRadius: 20, border: "1px solid #1A3050", letterSpacing: 2, display: "flex", alignItems: "center", gap: 4 }}>
+                              <PlayerAvatarMark meta={PLAYER_META[p]} size={14} reduceMotion={reduceMotion} /> •••
                             </div>
                           ))}
                         </div>
@@ -2874,8 +2968,8 @@ export default function App() {
                         <div style={{ fontSize: 9, color: "#4A6080", fontWeight: 700, letterSpacing: 0.3 }}>🪙 TOSS PICKS:</div>
                         <div style={{ display: "flex", gap: 8 }}>
                           {PLAYERS.filter(p => p !== selectedPlayer).map(p => (
-                            <div key={p} style={{ fontSize: 11, color: "#4A6080", background: "#0A1420", padding: "4px 10px", borderRadius: 20, border: "1px solid #1A3050", letterSpacing: 2 }}>
-                              {PLAYER_META[p].emoji} •••
+                            <div key={p} style={{ fontSize: 11, color: "#4A6080", background: "#0A1420", padding: "4px 10px", borderRadius: 20, border: "1px solid #1A3050", letterSpacing: 2, display: "flex", alignItems: "center", gap: 4 }}>
+                              <PlayerAvatarMark meta={PLAYER_META[p]} size={14} reduceMotion={reduceMotion} /> •••
                             </div>
                           ))}
                         </div>
@@ -3034,8 +3128,9 @@ export default function App() {
                       const pb = bets[`${match.id}__${p}`];
                       const correct = winner && pb === winner;
                       return (
-                          <span key={p} style={{ fontSize: 10, padding: "3px 8px", borderRadius: 20, background: correct ? "#14532D33" : "#0A1420", color: correct ? "#22C55E" : "#4A6080", border: `1px solid ${correct ? "#22C55E33" : "#1A3050"}`, animation: correct && !reduceMotion ? "correctPulse 1.7s ease-in-out infinite" : "none" }}>
-                          {PLAYER_META[p].emoji} {pb || "—"}{correct ? " ✅" : ""}
+                          <span key={p} style={{ fontSize: 10, padding: "3px 8px", borderRadius: 20, background: correct ? "#14532D33" : "#0A1420", color: correct ? "#22C55E" : "#4A6080", border: `1px solid ${correct ? "#22C55E33" : "#1A3050"}`, animation: correct && !reduceMotion ? "correctPulse 1.7s ease-in-out infinite" : "none", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                          <PlayerAvatarMark meta={PLAYER_META[p]} size={12} reduceMotion={reduceMotion} />
+                          {pb || "—"}{correct ? " ✅" : ""}
                         </span>
                       );
                     })}
@@ -3198,7 +3293,7 @@ export default function App() {
                       const meta = PLAYER_META[p];
                       return (
                         <div key={p} style={{ flex: 1, background: "#060D1A", borderRadius: 10, padding: "10px 8px", border: `1px solid ${earned > 0 ? (isAbandoned ? "#60A5FA55" : meta.color + "55") : "#1A3050"}` }}>
-                          <div style={{ fontSize: 12, fontWeight: 700, color: meta.color, marginBottom: 4 }}>{meta.emoji} {p}</div>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: meta.color, marginBottom: 4, display: "flex", alignItems: "center", gap: 5 }}><PlayerAvatarMark meta={meta} size={14} reduceMotion={reduceMotion} />{p}</div>
                           {!isAbandoned && (
                             <div style={{ fontSize: 10, color: "#4A6080" }}>Pick: <span style={{ color: winOk ? "#22C55E" : "#EF4444", fontWeight: 700, animation: winOk && !reduceMotion ? "correctPulse 1.7s ease-in-out infinite" : "none", display: "inline-block", padding: "0 2px", borderRadius: 4 }}>{pb || "—"}</span></div>
                           )}
@@ -3265,7 +3360,10 @@ export default function App() {
                 {payload.sort((a,b) => b.value - a.value).map(p => (
                   <div key={p.dataKey} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
                     <div style={{ width: 8, height: 8, borderRadius: "50%", background: p.color }} />
-                    <span style={{ color: "#E2E8F8" }}>{PLAYER_META[p.dataKey]?.emoji} {p.dataKey}</span>
+                    <span style={{ color: "#E2E8F8", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                      <PlayerAvatarMark meta={PLAYER_META[p.dataKey]} size={14} reduceMotion={reduceMotion} />
+                      {p.dataKey}
+                    </span>
                     <span style={{ color: p.color, fontWeight: 800, marginLeft: "auto", paddingLeft: 12 }}>{p.value} pts</span>
                   </div>
                 ))}
@@ -3316,7 +3414,7 @@ export default function App() {
                     {PLAYERS.map(p => (
                       <div key={p} style={{ display:"flex", alignItems:"center", gap:5 }}>
                         <div style={{ width:16, height:3, borderRadius:2, background:PLAYER_META[p].color }} />
-                        <span style={{ fontSize:10, color:PLAYER_META[p].color, fontWeight:700 }}>{PLAYER_META[p].emoji} {p}</span>
+                        <span style={{ fontSize:10, color:PLAYER_META[p].color, fontWeight:700, display:"inline-flex", alignItems:"center", gap:4 }}><PlayerAvatarMark meta={PLAYER_META[p]} size={12} reduceMotion={reduceMotion} />{p}</span>
                       </div>
                     ))}
                   </div>
@@ -3340,7 +3438,7 @@ export default function App() {
                     <div style={{ fontSize:10, color:"#4A6080", fontWeight:700, marginBottom:6 }}>🔥 MOST POINTS (7 DAYS)</div>
                     <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                       <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, color:PLAYER_META[weeklyInsights.playerOfWeek.player]?.color }}>
-                        {PLAYER_META[weeklyInsights.playerOfWeek.player]?.emoji} {weeklyInsights.playerOfWeek.player}
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><PlayerAvatarMark meta={PLAYER_META[weeklyInsights.playerOfWeek.player]} size={16} reduceMotion={reduceMotion} />{weeklyInsights.playerOfWeek.player}</span>
                       </div>
                       <div style={{ fontSize:14, color:"#FFD700", fontWeight:800 }}>+{weeklyInsights.playerOfWeek.points} pts</div>
                     </div>
@@ -3350,7 +3448,7 @@ export default function App() {
                     <div style={{ fontSize:10, color:"#4A6080", fontWeight:700, marginBottom:6 }}>📈 BIGGEST CLIMBER (7 DAYS)</div>
                     <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                       <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, color:PLAYER_META[weeklyInsights.biggestClimber.player]?.color }}>
-                        {PLAYER_META[weeklyInsights.biggestClimber.player]?.emoji} {weeklyInsights.biggestClimber.player}
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><PlayerAvatarMark meta={PLAYER_META[weeklyInsights.biggestClimber.player]} size={16} reduceMotion={reduceMotion} />{weeklyInsights.biggestClimber.player}</span>
                       </div>
                       <div style={{ fontSize:12, color:"#93C5FD", fontWeight:800 }}>
                         {weeklyInsights.biggestClimber.climbed > 0
@@ -3364,7 +3462,7 @@ export default function App() {
                     <div style={{ fontSize:10, color:"#4A6080", fontWeight:700, marginBottom:6 }}>🪙 TOSS MASTER (7 DAYS)</div>
                     <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                       <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, color:PLAYER_META[weeklyInsights.tossMaster.player]?.color }}>
-                        {PLAYER_META[weeklyInsights.tossMaster.player]?.emoji} {weeklyInsights.tossMaster.player}
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><PlayerAvatarMark meta={PLAYER_META[weeklyInsights.tossMaster.player]} size={16} reduceMotion={reduceMotion} />{weeklyInsights.tossMaster.player}</span>
                       </div>
                       <div style={{ fontSize:12, color:"#FFD700", fontWeight:800 }}>
                         {weeklyInsights.tossMaster.correct}/{weeklyInsights.tossMaster.total || 0} correct
@@ -3397,7 +3495,7 @@ export default function App() {
                       const isTop = miniRank === 1;
                       return (
                         <div key={`mini-${player}`} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                          <div style={{ fontSize: isTop ? 22 : 16 }}>{meta.emoji}</div>
+                          <PlayerAvatarBubble meta={meta} size={isTop ? 26 : 20} border={2} reduceMotion={reduceMotion} />
                           <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: isTop ? 12 : 10, color: meta.color, textAlign: "center", lineHeight: 1.2 }}>{player}</div>
                           <div style={{ fontSize: isTop ? 20 : 16, fontWeight: 900, color: "#FFD700", lineHeight: 1 }}>{weeklyMiniLeague.pts[player]}</div>
                           <div style={{ fontSize: 8, color: "#4A6080" }}>pts</div>
@@ -3448,8 +3546,9 @@ export default function App() {
                             <div key={slot.rank} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                               <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                                 <span style={{ fontSize: 14 }}>{medal}</span>
-                                <span style={{ fontSize: 13, fontWeight: 800, color: meta?.color || "#E2E8F8" }}>
-                                  {meta?.emoji} {slot.player}
+                                <span style={{ fontSize: 13, fontWeight: 800, color: meta?.color || "#E2E8F8", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                                  <PlayerAvatarMark meta={meta} size={14} reduceMotion={reduceMotion} />
+                                  {slot.player}
                                 </span>
                               </div>
                               <span style={{ fontSize: 12, fontWeight: 900, color: "#FFD700", flexShrink: 0 }}>{slot.pts} pts</span>
@@ -3481,7 +3580,7 @@ export default function App() {
                     const t = weeklyTrophyCabinet[p];
                     return (
                       <div key={`cabinet_${p}`} style={{ display: "grid", gridTemplateColumns: "1fr 48px 48px 48px 52px", gap: 6, alignItems: "center", padding: "7px 6px", borderTop: "1px solid #1A3050" }}>
-                        <div style={{ fontSize: 12, color: meta.color, fontWeight: 800 }}>{meta.emoji} {p}</div>
+                        <div style={{ fontSize: 12, color: meta.color, fontWeight: 800, display: "flex", alignItems: "center", gap: 5 }}><PlayerAvatarMark meta={meta} size={14} reduceMotion={reduceMotion} />{p}</div>
                         <div style={{ textAlign: "center", fontSize: 12, color: "#FCD34D", fontWeight: 800 }}>{t.gold}</div>
                         <div style={{ textAlign: "center", fontSize: 12, color: "#CBD5E1", fontWeight: 800 }}>{t.silver}</div>
                         <div style={{ textAlign: "center", fontSize: 12, color: "#FDBA74", fontWeight: 800 }}>{t.bronze}</div>
@@ -3503,7 +3602,7 @@ export default function App() {
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
                         <div>
                           <div style={{ fontSize: 10, color: "#4A6080", fontWeight: 700, marginBottom: 3 }}>{a.emoji} {a.title}</div>
-                          <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 14, color: meta.color, fontWeight: 800 }}>{meta.emoji} {a.player}</div>
+                          <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 14, color: meta.color, fontWeight: 800, display: "flex", alignItems: "center", gap: 6 }}><PlayerAvatarMark meta={meta} size={16} reduceMotion={reduceMotion} />{a.player}</div>
                         </div>
                         <div style={{ fontSize: 11, color: "#FFD700", fontWeight: 800, textAlign: "right" }}>{a.detail}</div>
                       </div>
@@ -3590,7 +3689,7 @@ export default function App() {
                 return (
                   <div key={p} style={{...S.card(meta.color+"44"),marginBottom:12}}>
                     <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
-                      <div style={{width:40,height:40,borderRadius:"50%",background:meta.light,border:`2px solid ${meta.color}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{meta.emoji}</div>
+                      <PlayerAvatarBubble meta={meta} size={40} border={2} reduceMotion={reduceMotion} />
                       <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:15,color:meta.color}}>{p}</div>
                     </div>
                     <div style={{marginBottom:10}}>
@@ -3648,13 +3747,13 @@ export default function App() {
                   <div key={key} style={{...S.card(),marginBottom:10}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
                       <div style={{display:"flex",alignItems:"center",gap:6}}>
-                        <div style={{fontSize:20}}>{m1.emoji}</div>
+                        <PlayerAvatarMark meta={m1} size={22} reduceMotion={reduceMotion} />
                         <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,color:m1.color}}>{p1}</div>
                       </div>
                       <div style={{fontSize:11,color:"#4A6080",fontWeight:700}}>VS</div>
                       <div style={{display:"flex",alignItems:"center",gap:6}}>
                         <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,color:m2.color}}>{p2}</div>
-                        <div style={{fontSize:20}}>{m2.emoji}</div>
+                        <PlayerAvatarMark meta={m2} size={22} reduceMotion={reduceMotion} />
                       </div>
                     </div>
                     <div style={{display:"flex",height:8,borderRadius:4,overflow:"hidden",marginBottom:8}}>
@@ -3694,8 +3793,8 @@ export default function App() {
                     const mismatches = spyLog.filter(e => e.player === p && e.type === "identity_confirm").length;
                     const meta = PLAYER_META[p];
                     return (
-                      <div key={p} style={{ flex:1, background: meta.light, border:`1px solid ${meta.color}44`, borderRadius:12, padding:"10px 8px", textAlign:"center" }}>
-                        <div style={{ fontSize:20 }}>{meta.emoji}</div>
+                      <div key={p} style={{ flex:1, background: meta.light, border:`1px solid ${meta.color}44`, borderRadius:12, padding:"10px 8px", textAlign:"center", display:"flex", flexDirection:"column", alignItems:"center" }}>
+                        <PlayerAvatarBubble meta={meta} size={36} border={2} reduceMotion={reduceMotion} />
                         <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:12, color:meta.color, marginTop:4 }}>{p}</div>
                         <div style={{ marginTop:6, display:"flex", flexDirection:"column", gap:2 }}>
                           <div style={{ fontSize:9, color:"#FF6B2B" }}>👁️ {peeks} peeks</div>
@@ -3723,9 +3822,7 @@ export default function App() {
                         <span style={{ fontSize:10, color:"#4A6080" }}>🕐 {fmtLogTime(entry.timestamp)}</span>
                       </div>
                       <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                        <div style={{ width:38, height:38, borderRadius:"50%", background:meta.light, border:`2px solid ${meta.color}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>
-                          {meta.emoji}
-                        </div>
+                        <PlayerAvatarBubble meta={meta} size={38} border={2} reduceMotion={reduceMotion} />
                         <div style={{ flex:1 }}>
                           <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
                             <span style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:13, color:meta.color }}>{entry.player}</span>
@@ -3964,9 +4061,7 @@ export default function App() {
               <div style={{ background:"#0D1828", border:`1px solid ${meta ? meta.color + "44" : "#1A3050"}`, borderRadius:12, padding:"10px 14px", marginBottom:12, display:"flex", alignItems:"center", gap:10 }}>
                 {meta ? (
                   <>
-                    <div style={{ width:36, height:36, borderRadius:"50%", background:meta.light, border:`2px solid ${meta.color}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>
-                      {meta.emoji}
-                    </div>
+                    <PlayerAvatarBubble meta={meta} size={36} border={2} reduceMotion={reduceMotion} />
                     <div>
                       <div style={{ fontSize:12, fontWeight:800, color:meta.color }}>Chatting as {chatSender}</div>
                       <div style={{ fontSize:10, color:"#4A6080" }}>Auto-detected from your device 🎯</div>
@@ -3984,9 +4079,9 @@ export default function App() {
                 {/* Override sender */}
                 <div style={{ marginLeft:"auto", display:"flex", gap:6 }}>
                   {PLAYERS.map(p => (
-                    <button key={p} onClick={() => setChatSender(p)}
-                      style={{ width:28, height:28, borderRadius:"50%", border:`2px solid ${chatSender === p ? PLAYER_META[p].color : "#1A3050"}`, background:chatSender === p ? PLAYER_META[p].light : "#0A1420", fontSize:14, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
-                      {PLAYER_META[p].emoji}
+                    <button key={p} type="button" onClick={() => setChatSender(p)}
+                      style={{ width:28, height:28, borderRadius:"50%", border:`2px solid ${chatSender === p ? PLAYER_META[p].color : "#1A3050"}`, background:chatSender === p ? PLAYER_META[p].light : "#0A1420", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", padding: 0, overflow:"hidden" }}>
+                      <PlayerAvatarBubble meta={PLAYER_META[p]} size={26} border={0} bgLight={false} reduceMotion={reduceMotion} style={{ border: "none", width: 26, height: 26 }} />
                     </button>
                   ))}
                 </div>
@@ -4057,9 +4152,7 @@ export default function App() {
 
                             <div style={{ display:"flex", flexDirection:isMe ? "row-reverse" : "row", alignItems:"flex-end", gap:8 }}>
                               {/* Avatar */}
-                              <div style={{ width:30, height:30, borderRadius:"50%", background:senderMeta.light, border:`2px solid ${senderMeta.color}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, flexShrink:0 }}>
-                                {senderMeta.emoji}
-                              </div>
+                              <PlayerAvatarBubble meta={senderMeta} size={30} border={2} reduceMotion={reduceMotion} />
 
                               {/* Bubble column */}
                               <div style={{ maxWidth:"75%", display:"flex", flexDirection:"column", alignItems:isMe ? "flex-end" : "flex-start" }}>
@@ -4823,17 +4916,17 @@ export default function App() {
         const p = avatarPicker;
         const meta = PLAYER_META[p];
         const current = customAvatars[p] || DEFAULT_AVATARS[p] || { emoji: meta.emoji, colorIdx: 0 };
-        const [pickedEmoji, setPickedEmoji] = [current.emoji, (e) => {
-          const updated = { ...current, emoji: e };
-          set(ref(db, `avatars/${p}`), updated);
-          setCustomAvatars(prev => ({ ...prev, [p]: updated }));
-        }];
-        const [pickedColorIdx, setPickedColorIdx] = [current.colorIdx ?? 0, (idx) => {
-          const updated = { ...current, colorIdx: idx };
-          set(ref(db, `avatars/${p}`), updated);
-          setCustomAvatars(prev => ({ ...prev, [p]: updated }));
-        }];
+        function persistAvatar(patch) {
+          const next = { ...current, ...patch };
+          if (!next.animUrl) delete next.animUrl;
+          next.colorIdx = next.colorIdx ?? 0;
+          next.emoji = next.emoji || meta.emoji;
+          set(ref(db, `avatars/${p}`), next);
+          setCustomAvatars(prev => ({ ...prev, [p]: next }));
+        }
+        const pickedColorIdx = current.colorIdx ?? 0;
         const previewColor = AVATAR_COLORS[pickedColorIdx] || AVATAR_COLORS[0];
+        const previewMeta = { emoji: current.emoji, animUrl: current.animUrl, light: previewColor.light, color: previewColor.color };
         return (
           <div
             style={{
@@ -4874,17 +4967,47 @@ export default function App() {
 
               {/* Preview */}
               <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20, background: "#0A1420", borderRadius: 14, padding: "14px 16px" }}>
-                <div style={{ width: 56, height: 56, borderRadius: "50%", background: previewColor.light, border: `3px solid ${previewColor.color}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>
-                  {pickedEmoji}
-                </div>
+                <PlayerAvatarBubble meta={previewMeta} size={56} border={3} borderColor={previewColor.color} reduceMotion={reduceMotion} />
                 <div>
                   <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 18, color: previewColor.color }}>{p}</div>
-                  <div style={{ fontSize: 11, color: "#4A6080", marginTop: 2 }}>Tap an emoji or colour to change</div>
+                  <div style={{ fontSize: 11, color: "#4A6080", marginTop: 2 }}>Static emoji, living loop, or ring colour — mix freely.</div>
                 </div>
               </div>
 
+              {/* Animated GIF stickers */}
+              <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 11, color: "#4A6080", fontWeight: 700, letterSpacing: 0.5, marginBottom: 8 }}>✨ LIVING LOOPS</div>
+              <div style={{ fontSize: 10, color: "#2A4060", marginBottom: 10, lineHeight: 1.45 }}>
+                Short GIF loops (like sticker keyboards). Needs network; if one fails to load, pick another or use static emoji below.
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 18 }}>
+                {ANIMATED_AVATAR_PRESETS.map(preset => {
+                  const active = current.animUrl === preset.url;
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      title={`${preset.label} (${preset.emoji})`}
+                      onClick={() => persistAvatar({ emoji: preset.emoji, animUrl: preset.url })}
+                      style={{
+                        aspectRatio: "1",
+                        borderRadius: 12,
+                        border: `2px solid ${active ? previewColor.color : "#1A3050"}`,
+                        background: active ? previewColor.light : "#0A1420",
+                        cursor: "pointer",
+                        padding: 0,
+                        overflow: "hidden",
+                        position: "relative",
+                      }}
+                    >
+                      <img src={preset.url} alt="" draggable={false} loading="lazy" decoding="async" referrerPolicy="no-referrer" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      <div style={{ position: "absolute", bottom: 2, left: 2, right: 2, fontSize: 8, fontWeight: 800, color: "#E2E8F8", textShadow: "0 1px 3px #000", textAlign: "center", pointerEvents: "none" }}>{preset.label}</div>
+                    </button>
+                  );
+                })}
+              </div>
+
               {/* Emoji picker — categorised */}
-              <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 11, color: "#4A6080", fontWeight: 700, letterSpacing: 0.5, marginBottom: 10 }}>CHOOSE EMOJI</div>
+              <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 11, color: "#4A6080", fontWeight: 700, letterSpacing: 0.5, marginBottom: 10 }}>CHOOSE STATIC EMOJI</div>
               {[
                 { label: "😀 Smileys & Faces",   range: [0, 20] },
                 { label: "🐾 Wild Animals",       range: [20, 50] },
@@ -4896,12 +5019,15 @@ export default function App() {
                 <div key={cat.label} style={{ marginBottom: 14 }}>
                   <div style={{ fontSize: 10, color: "#4A6080", fontWeight: 700, marginBottom: 6 }}>{cat.label}</div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(10, 1fr)", gap: 6 }}>
-                    {AVATAR_EMOJI_LIST.slice(cat.range[0], cat.range[1]).map(emoji => (
-                      <button key={emoji} onClick={() => setPickedEmoji(emoji)}
-                        style={{ aspectRatio: "1", borderRadius: 8, border: `2px solid ${pickedEmoji === emoji ? previewColor.color : "#1A3050"}`, background: pickedEmoji === emoji ? previewColor.light : "#0A1420", fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        {emoji}
-                      </button>
-                    ))}
+                    {AVATAR_EMOJI_LIST.slice(cat.range[0], cat.range[1]).map(emoji => {
+                      const active = !current.animUrl && current.emoji === emoji;
+                      return (
+                        <button key={emoji} type="button" onClick={() => persistAvatar({ emoji, animUrl: undefined })}
+                          style={{ aspectRatio: "1", borderRadius: 8, border: `2px solid ${active ? previewColor.color : "#1A3050"}`, background: active ? previewColor.light : "#0A1420", fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          {emoji}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               ))}
@@ -4910,7 +5036,7 @@ export default function App() {
               <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 11, color: "#4A6080", fontWeight: 700, letterSpacing: 0.5, marginBottom: 10 }}>CHOOSE COLOUR THEME</div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, marginBottom: 8 }}>
                 {AVATAR_COLORS.map((theme, idx) => (
-                  <button key={idx} onClick={() => setPickedColorIdx(idx)}
+                  <button key={idx} type="button" onClick={() => persistAvatar({ colorIdx: idx })}
                     style={{ padding: "10px 4px", borderRadius: 10, border: `2px solid ${pickedColorIdx === idx ? theme.color : "#1A3050"}`, background: pickedColorIdx === idx ? theme.light : "#0A1420", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
                     <div style={{ width: 20, height: 20, borderRadius: "50%", background: theme.color }} />
                     <div style={{ fontSize: 8, color: pickedColorIdx === idx ? theme.color : "#4A6080", fontWeight: 700 }}>{theme.name}</div>
@@ -4960,8 +5086,8 @@ export default function App() {
             }}>
               {/* Player avatar */}
               <div style={{ textAlign: "center", marginBottom: 16 }}>
-                <div style={{ width: 64, height: 64, borderRadius: "50%", background: meta.light, border: `3px solid ${meta.color}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32, margin: "0 auto" }}>
-                  {meta.emoji}
+                <div style={{ margin: "0 auto", width: 64, height: 64 }}>
+                  <PlayerAvatarBubble meta={meta} size={64} border={3} reduceMotion={reduceMotion} />
                 </div>
               </div>
               {/* Title */}
