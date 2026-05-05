@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef, useMemo } from "react";
-import Lottie from "https://esm.sh/lottie-react@2.4.0";
+import Lottie from "lottie-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { initializeApp } from "firebase/app";
 import { getDatabase, ref, onValue, set, get, update } from "firebase/database";
@@ -172,39 +172,6 @@ const PLAYERS = ["Nakel", "Mitthu", "Megs"];
 
 // ─── Avatar options ────────────────────────────────────────────────
 // Categorised avatar emojis — 100+ choices
-// ── Lottie URL map — Google Noto Animated Emoji ─────────────────────────
-const LOTTIE_BASE = "https://fonts.gstatic.com/s/e/notoemoji/latest";
-const LOTTIE_MAP = {
-  // 😀 Smileys & Faces
-  "😀":"1f600","😂":"1f602","🤣":"1f923","😍":"1f60d","🥰":"1f970",
-  "😘":"1f618","😜":"1f61c","🤪":"1f92a","😎":"1f60e","🤩":"1f929",
-  "🥳":"1f973","😇":"1f607","🤓":"1f913","🥸":"1f978","😈":"1f608",
-  "👿":"1f47f","👻":"1f47b","💀":"1f480","🎃":"1f383","🤡":"1f921",
-  "🥶":"1f976","🤯":"1f92f","😤":"1f624","🤑":"1f911","😏":"1f60f",
-  "🫡":"1fae1","🤠":"1f920","🧐":"1f9d0","😱":"1f631","😡":"1f621",
-  "🤬":"1f92c","🥺":"1f97a","😴":"1f634","🫠":"1fae0","🤭":"1f92d",
-  "🫣":"1fae3","😵":"1f635","🤮":"1f92e",
-  // 🎉 Celebrations
-  "🎉":"1f389","🎊":"1f38a","🎆":"1f386","🎇":"1f387","🧨":"1f9e8",
-  "🎂":"1f382","🎁":"1f381","🎈":"1f388","👑":"1f451","🏅":"1f3c5",
-  "🥇":"1f947","🥂":"1f942","🍾":"1f37e","🎀":"1f380","✨":"2728",
-  "🌟":"1f31f","💫":"1f4ab","🎯":"1f3af","🏆":"1f3c6",
-  // 🔥 Fire & Power
-  "🔥":"1f525","⚡":"26a1","💥":"1f4a5","🚀":"1f680","☄️":"2604",
-  "💎":"1f48e","🌊":"1f30a","❄️":"2744","🌋":"1f30b","⚔️":"2694",
-  // 🐾 Animals
-  "🦁":"1f981","🐯":"1f42f","🐻":"1f43b","🦊":"1f98a","🐺":"1f43a",
-  "🦈":"1f988","🐲":"1f432","🦅":"1f985","🦉":"1f989","🐼":"1f43c",
-  "🦄":"1f984","🦂":"1f982","🐉":"1f409","🦋":"1f98b","🐸":"1f438",
-  "🦓":"1f993","🦒":"1f992","🐘":"1f418","🦏":"1f98f","🐆":"1f406",
-};
-
-function getLottieUrl(emoji) {
-  const cp = LOTTIE_MAP[emoji];
-  return cp ? `${LOTTIE_BASE}/${cp}/lottie.json` : null;
-}
-
-// Updated emoji list — 4 categories, 87 animated options
 const AVATAR_EMOJI_LIST = [
   // 😀 Smileys & Faces (38)
   "😀","😂","🤣","😍","🥰","😘","😜","🤪","😎","🤩",
@@ -233,6 +200,33 @@ const AVATAR_COLORS = [
   { color: "#F97316", light: "#F9731618", name: "Amber" },
   { color: "#6366F1", light: "#6366F118", name: "Indigo" },
 ];
+
+// ── Lottie URL map — Google Noto Animated Emoji ─────────────────────────
+const LOTTIE_BASE = "https://fonts.gstatic.com/s/e/notoemoji/latest";
+const LOTTIE_MAP = {
+  "😀":"1f600","😂":"1f602","🤣":"1f923","😍":"1f60d","🥰":"1f970",
+  "😘":"1f618","😜":"1f61c","🤪":"1f92a","😎":"1f60e","🤩":"1f929",
+  "🥳":"1f973","😇":"1f607","🤓":"1f913","🥸":"1f978","😈":"1f608",
+  "👿":"1f47f","👻":"1f47b","💀":"1f480","🎃":"1f383","🤡":"1f921",
+  "🥶":"1f976","🤯":"1f92f","😤":"1f624","🤑":"1f911","😏":"1f60f",
+  "🫡":"1fae1","🤠":"1f920","🧐":"1f9d0","😱":"1f631","😡":"1f621",
+  "🤬":"1f92c","🥺":"1f97a","😴":"1f634","🫠":"1fae0","🤭":"1f92d",
+  "🫣":"1fae3","😵":"1f635","🤮":"1f92e",
+  "🎉":"1f389","🎊":"1f38a","🎆":"1f386","🎇":"1f387","🧨":"1f9e8",
+  "🎂":"1f382","🎁":"1f381","🎈":"1f388","👑":"1f451","🏅":"1f3c5",
+  "🥇":"1f947","🥂":"1f942","🍾":"1f37e","🎀":"1f380","✨":"2728",
+  "🌟":"1f31f","💫":"1f4ab","🎯":"1f3af","🏆":"1f3c6",
+  "🔥":"1f525","⚡":"26a1","💥":"1f4a5","🚀":"1f680","☄️":"2604",
+  "💎":"1f48e","🌊":"1f30a","❄️":"2744","🌋":"1f30b","⚔️":"2694",
+  "🦁":"1f981","🐯":"1f42f","🐻":"1f43b","🦊":"1f98a","🐺":"1f43a",
+  "🦈":"1f988","🐲":"1f432","🦅":"1f985","🦉":"1f989","🐼":"1f43c",
+  "🦄":"1f984","🦂":"1f982","🐉":"1f409","🦋":"1f98b","🐸":"1f438",
+  "🦓":"1f993","🦒":"1f992","🐘":"1f418","🦏":"1f98f","🐆":"1f406",
+};
+function getLottieUrl(emoji) {
+  const cp = LOTTIE_MAP[emoji];
+  return cp ? `${LOTTIE_BASE}/${cp}/lottie.json` : null;
+}
 
 // Default avatars if nothing saved
 const DEFAULT_AVATARS = {
@@ -1051,7 +1045,7 @@ function istMondaySundayBoundsUtc(now = new Date()) {
   return { startMs, endMs, label };
 }
 
-// ─── Lottie Emoji Tile (for avatar picker grid) ──────────────────────────
+// ─── Team Badge ────────────────────────────────────────────────────
 function LottieEmojiTile({ emoji, size = 36, active, accentColor, onClick }) {
   const lUrl = getLottieUrl(emoji);
   const [animData, setAnimData] = useState(null);
@@ -1067,13 +1061,12 @@ function LottieEmojiTile({ emoji, size = 36, active, accentColor, onClick }) {
       {animData ? (
         <Lottie animationData={animData} loop={true} autoplay={true} style={{ width: size, height: size }} />
       ) : (
-        <span style={{ fontSize: Math.round(size * 0.7) }}>{emoji}</span>
+        <span style={{ fontSize: Math.round(size * 0.75) }}>{emoji}</span>
       )}
     </button>
   );
 }
 
-// ─── Team Badge ────────────────────────────────────────────────────
 function TeamBadge({ short, size = 40 }) {
   const t = IPL_TEAMS[short];
   const [imgError, setImgError] = useState(false);
@@ -1137,35 +1130,15 @@ function PlayerAvatarBubble({ meta, size, border = 2, borderColor, bgLight = tru
   }, [lottieUrl]);
 
   return (
-    <div
-      style={{
-        width: size,
-        height: size,
-        borderRadius: "50%",
-        border: `${border}px solid ${bc}`,
-        background: (bgLight ? meta?.light : "transparent") || "#1A3050",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        overflow: "hidden",
-        flexShrink: 0,
-        ...style,
-      }}
-    >
+    <div style={{ width: size, height: size, borderRadius: "50%", border: `${border}px solid ${bc}`, background: (bgLight ? meta?.light : "transparent") || "#1A3050", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0, ...style }}>
       {animData && !loadFailed ? (
-        <Lottie
-          animationData={animData}
-          loop={true}
-          autoplay={true}
-          style={{ width: Math.round(size * 0.85), height: Math.round(size * 0.85) }}
-        />
+        <Lottie animationData={animData} loop={true} autoplay={true} style={{ width: Math.round(size * 0.85), height: Math.round(size * 0.85) }} />
       ) : (
         <span style={{ fontSize: Math.round(size * 0.52), lineHeight: 1 }}>{emoji}</span>
       )}
     </div>
   );
 }
-
 /** Inline emoji mark */
 function PlayerAvatarMark({ meta, size = 18, style }) {
   return (
@@ -4993,22 +4966,19 @@ export default function App() {
               {/* Emoji picker — categorised */}
               <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 11, color: "#4A6080", fontWeight: 700, letterSpacing: 0.5, marginBottom: 10 }}>CHOOSE EMOJI</div>
               {[
-                { label: "😀 Smileys & Faces",   range: [0, 38] },
-                { label: "🎉 Celebrations",       range: [38, 57] },
-                { label: "🔥 Fire & Power",       range: [57, 67] },
-                { label: "🐾 Animals",            range: [67, 87] },
+                { label: "😀 Smileys & Faces", range: [0, 38] },
+                { label: "🎉 Celebrations",     range: [38, 57] },
+                { label: "🔥 Fire & Power",     range: [57, 67] },
+                { label: "🐾 Animals",          range: [67, 87] },
               ].map(cat => (
                 <div key={cat.label} style={{ marginBottom: 14 }}>
                   <div style={{ fontSize: 10, color: "#4A6080", fontWeight: 700, marginBottom: 6 }}>{cat.label}</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(8, 1fr)", gap: 6 }}>
-                    {AVATAR_EMOJI_LIST.slice(cat.range[0], cat.range[1]).map(emoji => {
-                      const active = current.emoji === emoji;
-                      return (
-                        <LottieEmojiTile key={emoji} emoji={emoji} size={30} active={active}
-                          accentColor={previewColor.color}
-                          onClick={() => persistAvatar({ emoji })} />
-                      );
-                    })}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(10, 1fr)", gap: 6 }}>
+                    {AVATAR_EMOJI_LIST.slice(cat.range[0], cat.range[1]).map(emoji => (
+                      <LottieEmojiTile key={emoji} emoji={emoji} size={28} active={current.emoji === emoji}
+                        accentColor={previewColor.color}
+                        onClick={() => persistAvatar({ emoji })} />
+                    ))}
                   </div>
                 </div>
               ))}
