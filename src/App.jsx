@@ -189,9 +189,10 @@ const AVATAR_EMOJI_LIST = [
   // 👐 Hands & Hearts (20)
   "👍","👎","🤝","🙌","🤜","🤛","🤞","🫶","❤️","🧡",
   "💛","💚","💙","💜","🖤","🤍","💔","💕","💯","✌️",
-  // 🌈 Extra (20)
-  "🌈","⭐","🌙","☀️","🍀","🎸","🎮","🤖","👽","🧠",
-  "🦸","🥷","🧙","🔮","💣","🎭","🎨","🧬","🌺","🪐",
+  // 🌈 Extra (22) — includes 💃 Dancing Lady + 👸 Queen
+  "💃","👸","🌈","⭐","🌙","☀️","🍀","🎸","🎮","🤖",
+  "👽","🧠","🦸","🥷","🧙","🔮","💣","🎭","🎨","🧬",
+  "🌺","🪐",
 ];
 
 const AVATAR_COLORS = [
@@ -207,7 +208,7 @@ const AVATAR_COLORS = [
   { color: "#6366F1", light: "#6366F118", name: "Indigo" },
 ];
 
-// ── Lottie URL map — Google Noto Animated Emoji ─────────────────────────
+// ── Lottie URL map ───────────────────────────────────────────────────
 const LOTTIE_BASE = "https://fonts.gstatic.com/s/e/notoemoji/latest";
 const LOTTIE_MAP = {
   "😀":"1f600","😂":"1f602","🤣":"1f923","😍":"1f60d","🥰":"1f970",
@@ -232,6 +233,7 @@ const LOTTIE_MAP = {
   "🤛":"1f91b","🤞":"1f91e","🫶":"1faf6","❤️":"2764","🧡":"1f9e1",
   "💛":"1f49b","💚":"1f49a","💙":"1f499","💜":"1f49c","🖤":"1f5a4",
   "🤍":"1f90d","💔":"1f494","💕":"1f495","💯":"1f4af",
+  "💃":"1f483","👸":"1f478",
   "🌈":"1f308","⭐":"2b50","🌙":"1f319","☀️":"2600","🍀":"1f340",
   "🎸":"1f3b8","🎮":"1f3ae","🤖":"1f916","👽":"1f47d","🧠":"1f9e0",
   "🦸":"1f9b8","🥷":"1f977","🧙":"1f9d9","🔮":"1f52e","💣":"1f4a3",
@@ -1155,13 +1157,11 @@ function PlayerAvatarMark({ meta, size = 18, style }) {
     return () => { cancelled = true; };
   }, [lottieUrl]);
   return animData ? (
-    <span style={{ display: "inline-flex", verticalAlign: "middle", width: size, height: size, flexShrink: 0, ...style }}>
-      <Lottie animationData={animData} loop autoplay style={{ width: size, height: size }} />
+    <span style={{ display:"inline-flex", verticalAlign:"middle", width:size, height:size, flexShrink:0, ...style }}>
+      <Lottie animationData={animData} loop autoplay style={{ width:size, height:size }} />
     </span>
   ) : (
-    <span style={{ fontSize: Math.round(size * 0.85), lineHeight: 1, display: "inline-flex", verticalAlign: "middle", ...style }}>
-      {emoji}
-    </span>
+    <span style={{ fontSize:Math.round(size*0.85), lineHeight:1, display:"inline-flex", verticalAlign:"middle", ...style }}>{emoji}</span>
   );
 }
 
@@ -2372,6 +2372,8 @@ export default function App() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Syne:wght@700;800&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
+        html { height: -webkit-fill-available; }
+        body { min-height: -webkit-fill-available; }
         button:hover { opacity: 0.88; }
         @keyframes slideDown { from { transform: translateX(-50%) translateY(-10px); opacity:0; } to { transform: translateX(-50%) translateY(0); opacity:1; } }
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
@@ -4058,7 +4060,7 @@ export default function App() {
           }, {});
 
           return (
-            <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 160px)" }}>
+            <div style={{ display: "flex", flexDirection: "column", height: "calc(100svh - 160px)", minHeight: 0 }}>
               {/* Header */}
               <div style={{ fontFamily:"'Syne',sans-serif", fontSize:13, color:"#FFD700", fontWeight:800, marginBottom:4, letterSpacing:0.5 }}>💬 BETZONE CHAT</div>
               <div style={{ fontSize:11, color:"#4A6080", marginBottom:12 }}>Trash talk, banter and predictions 🔥</div>
@@ -4094,7 +4096,7 @@ export default function App() {
               </div>
 
               {/* Messages — scroll position persisted per device (betzone_chatScrollTop) */}
-              <div ref={chatScrollRef} style={{ flex:1, overflowY:"auto", marginBottom:12 }} onScroll={schedulePersistChatScroll} onClick={() => setLongPressMsg(null)}>
+              <div ref={chatScrollRef} style={{ flex:1, overflowY:"auto", marginBottom:12, WebkitOverflowScrolling:"touch", minHeight:0 }} onScroll={schedulePersistChatScroll} onClick={() => setLongPressMsg(null)}>
                 {chatMessages.length === 0 ? (
                   <div style={{ textAlign:"center", padding:40, color:"#2A4060" }}>
                     <div style={{ fontSize:40, marginBottom:10 }}>💬</div>
@@ -4249,8 +4251,8 @@ export default function App() {
                 </div>
               )}
 
-              {/* Input bar */}
-              <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}
+              {/* Input bar — iOS keyboard safe */}
+              <div style={{ display:"flex", gap:8, alignItems:"flex-end", flexShrink:0, paddingBottom:"env(safe-area-inset-bottom, 0px)" }}
                 onClick={() => setLongPressMsg(null)}>
                 <div style={{ flex:1, background:"#0D1828", border:`1px solid ${meta ? meta.color + "44" : "#1A3050"}`, borderRadius: replyTo ? "0 0 14px 14px" : 14, padding:"10px 14px", display:"flex", alignItems:"center" }}>
                   <textarea
@@ -4990,7 +4992,7 @@ export default function App() {
                 { label: "🔥 Fire & Power",     range: [57,  67] },
                 { label: "🐾 Animals",          range: [67,  87] },
                 { label: "👐 Hands & Hearts",   range: [87, 107] },
-                { label: "🌈 Extra",            range: [107, 127] },
+                { label: "🌈 Extra",            range: [107, 129] },
               ].map(cat => (
                 <div key={cat.label} style={{ marginBottom: 14 }}>
                   <div style={{ fontSize: 10, color: "#4A6080", fontWeight: 700, marginBottom: 6 }}>{cat.label}</div>
