@@ -4429,7 +4429,19 @@ export default function App() {
                           {!confirmed ? (
                             <button
                               type="button"
-                              onClick={() => update(ref(db, `playoffAdmin/${rowKey}`), { confirmed: true })}
+                              onClick={() => {
+                                const path = `playoffAdmin/${rowKey}`;
+                                console.log("🔥 Writing to Firebase:", path, { confirmed: true });
+                                update(ref(db, path), { confirmed: true })
+                                  .then(() => {
+                                    console.log("✅ Firebase write SUCCESS");
+                                    notify("✅ Fixture confirmed — betting open!");
+                                  })
+                                  .catch(err => {
+                                    console.error("❌ Firebase write FAILED:", err);
+                                    notify("❌ Error: " + err.message, "error");
+                                  });
+                              }}
                               style={{ ...S.btn("#15803D", "#fff"), width: "100%", fontSize: 12 }}
                             >
                               ✅ Confirm fixture — open betting
