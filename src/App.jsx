@@ -1305,6 +1305,8 @@ export default function App() {
   const [customAvatars, setCustomAvatars] = useState({}); // avatar overrides from Firebase
   const [avatarPicker, setAvatarPicker] = useState(null); // player name whose avatar is being edited
   const [toast, setToast] = useState(null);
+  const [showSeasonPopup, setShowSeasonPopup] = useState(false);
+  const [showHighlightReel, setShowHighlightReel] = useState(false);
   const [scorecardModalMatchId, setScorecardModalMatchId] = useState(null);
   const [rankFlash, setRankFlash] = useState({});
   const prevRanksRef = useRef(null);
@@ -1510,6 +1512,19 @@ export default function App() {
       setDevicePlayer(info.likelyUser);
     }
   }, []);
+
+  // Show season champion popup when the Final is completed
+  useEffect(() => {
+    if (loading || matches.length === 0) return;
+    const final = matches.find(m => m.id === "ipl26-po-final");
+    if (!final) return;
+    const finalStatus = getEffectiveStatus(final);
+    const finalWinner = getEffectiveWinner(final);
+    if (finalStatus === "completed" && finalWinner) {
+      const t = setTimeout(() => setShowSeasonPopup(true), 1200);
+      return () => clearTimeout(t);
+    }
+  }, [loading, matches, manualResults]);
 
   // ── Auto-lock: check every 5 mins if any match is within 30 mins ──
   useEffect(() => {
@@ -2391,6 +2406,30 @@ export default function App() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Syne:wght@700;800&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
+        html { height: -webkit-fill-available; }
+        body { min-height: -webkit-fill-available; }
+        @keyframes confettiFall {
+          0%   { transform: translateY(-20px) rotate(0deg);   opacity: 1; }
+          100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+        }
+        @keyframes championPop {
+          0%   { transform: scale(0.4) translateY(60px); opacity: 0; }
+          70%  { transform: scale(1.08) translateY(-8px); opacity: 1; }
+          100% { transform: scale(1) translateY(0); opacity: 1; }
+        }
+        @keyframes trophySpin {
+          0%   { transform: rotateY(0deg) scale(1); }
+          50%  { transform: rotateY(180deg) scale(1.2); }
+          100% { transform: rotateY(360deg) scale(1); }
+        }
+        @keyframes shimmer {
+          0%   { background-position: -200% center; }
+          100% { background-position: 200% center; }
+        }
+        @keyframes reelSlideIn {
+          0%   { transform: translateX(60px); opacity: 0; }
+          100% { transform: translateX(0); opacity: 1; }
+        }
         html { height: -webkit-fill-available; }
         body { min-height: -webkit-fill-available; }
         button:hover { opacity: 0.88; }
@@ -4943,6 +4982,253 @@ export default function App() {
                   )}
                 </div>
               )}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── SEASON CHAMPION POPUP ── */}
+      {showSeasonPopup && (() => {
+        const final = matches.find(m => m.id === "ipl26-po-final");
+        const iplChampion = getEffectiveWinner(final);
+        const { pts, breakdown } = calcPoints();
+        const ranked = [...PLAYERS].sort((a, b) => pts[b] - pts[a]);
+        const champion = ranked[0];
+        const champMeta = PLAYER_META[champion];
+        const medals = ["🥇","🥈","🥉"];
+        const confettiColors = ["#FFD700","#FF6B2B","#22C55E","#60A5FA","#F472B6","#A78BFA"];
+        const confettiCount = 40;
+
+        return (
+          <div style={{ position:"fixed", inset:0, zIndex:9999, display:"flex", alignItems:"flex-end", justifyContent:"center" }}
+            onClick={() => setShowSeasonPopup(false)}>
+
+            {/* Confetti */}
+            {Array.from({ length: confettiCount }).map((_, i) => (
+              <div key={i} style={{
+                position:"fixed",
+                left: `${Math.random() * 100}%`,
+                top: `-${Math.random() * 20}px`,
+                width: `${6 + Math.random() * 8}px`,
+                height: `${10 + Math.random() * 10}px`,
+                borderRadius: Math.random() > 0.5 ? "50%" : "2px",
+                background: confettiColors[i % confettiColors.length],
+                animation: `confettiFall ${2 + Math.random() * 3}s ease-in ${Math.random() * 2}s forwards`,
+                pointerEvents: "none", zIndex: 9998,
+              }} />
+            ))}
+
+            {/* Backdrop */}
+            <div style={{ position:"absolute", inset:0, background:"#000000EE" }} />
+
+            {/* Card */}
+            <div style={{ position:"relative", width:"100%", maxWidth:440, background:"linear-gradient(160deg,#0D1828 0%,#1A1A2E 100%)", borderRadius:"28px 28px 0 0", padding:"32px 24px 40px", animation:"championPop .6s cubic-bezier(.22,1,.36,1) forwards", zIndex:9999 }}
+              onClick={e => e.stopPropagation()}>
+
+              {/* Close */}
+              <button onClick={() => setShowSeasonPopup(false)}
+                style={{ position:"absolute", top:16, right:16, background:"#1A3050", border:"none", borderRadius:"50%", width:32, height:32, color:"#7A90B0", fontSize:16, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
+
+              {/* Trophy */}
+              <div style={{ textAlign:"center", marginBottom:8 }}>
+                <div style={{ fontSize:64, animation:"trophySpin 3s ease-in-out infinite", display:"inline-block" }}>🏆</div>
+              </div>
+
+              {/* Title */}
+              <div style={{ textAlign:"center", marginBottom:4 }}>
+                <div style={{ fontFamily:"'Syne',sans-serif", fontSize:11, fontWeight:700, color:"#FFD700", letterSpacing:3, marginBottom:6 }}>IPL BETZONE 2026</div>
+                <div style={{ fontFamily:"'Syne',sans-serif", fontSize:28, fontWeight:800, background:"linear-gradient(90deg,#FFD700,#FF6B2B,#FFD700)", backgroundSize:"200%", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", animation:"shimmer 2s linear infinite" }}>
+                  SEASON CHAMPION
+                </div>
+              </div>
+
+              {/* Champion avatar */}
+              <div style={{ display:"flex", flexDirection:"column", alignItems:"center", margin:"20px 0 24px" }}>
+                <PlayerAvatarBubble meta={champMeta} size={96} border={3} borderColor="#FFD700" />
+                <div style={{ fontFamily:"'Syne',sans-serif", fontSize:26, fontWeight:800, color:champMeta.color, marginTop:12 }}>{champion}</div>
+                <div style={{ fontSize:13, color:"#FFD700", fontWeight:700, marginTop:4 }}>
+                  {pts[champion]} pts · IPL Champion was {iplChampion}
+                </div>
+              </div>
+
+              {/* Final standings */}
+              <div style={{ background:"#0A1420", borderRadius:16, padding:"12px 16px", marginBottom:20 }}>
+                <div style={{ fontSize:10, color:"#4A6080", fontWeight:700, letterSpacing:1, marginBottom:10 }}>FINAL STANDINGS</div>
+                {ranked.map((p, i) => {
+                  const meta = PLAYER_META[p];
+                  return (
+                    <div key={p} style={{ display:"flex", alignItems:"center", gap:12, marginBottom: i < 2 ? 10 : 0 }}>
+                      <div style={{ fontSize:22, width:28, textAlign:"center" }}>{medals[i]}</div>
+                      <PlayerAvatarBubble meta={meta} size={36} border={2} />
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontSize:13, fontWeight:800, color:meta.color }}>{p}</div>
+                        <div style={{ fontSize:10, color:"#4A6080" }}>{breakdown[p]?.length || 0} matches bet</div>
+                      </div>
+                      <div style={{ fontFamily:"'Syne',sans-serif", fontSize:20, fontWeight:800, color: i === 0 ? "#FFD700" : i === 1 ? "#C0C0C0" : "#CD7F32" }}>
+                        {pts[p]}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Highlight Reel button */}
+              <button onClick={() => { setShowSeasonPopup(false); setShowHighlightReel(true); }}
+                style={{ width:"100%", padding:"14px", borderRadius:14, border:"none", background:`linear-gradient(135deg,${champMeta.color},${champMeta.color}99)`, color:"#fff", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:15, cursor:"pointer", marginBottom:10 }}>
+                🎬 View Season Highlight Reel
+              </button>
+              <button onClick={() => setShowSeasonPopup(false)}
+                style={{ width:"100%", padding:"11px", borderRadius:14, border:"1px solid #1A3050", background:"transparent", color:"#4A6080", fontSize:13, cursor:"pointer" }}>
+                Close
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── SEASON HIGHLIGHT REEL ── */}
+      {showHighlightReel && (() => {
+        const { pts, breakdown } = calcPoints();
+        const ranked = [...PLAYERS].sort((a, b) => pts[b] - pts[a]);
+        const champion = ranked[0];
+        const champMeta = PLAYER_META[champion];
+
+        // Stats for the reel
+        const totalMatches = completedMatches.length;
+        const totalBets = PLAYERS.reduce((sum, p) => sum + (breakdown[p]?.length || 0), 0);
+
+        // Best match per player (most pts in one game)
+        const bestMatch = {};
+        PLAYERS.forEach(p => {
+          const best = (breakdown[p] || []).reduce((max, b) => b.gained > (max?.gained || 0) ? b : max, null);
+          bestMatch[p] = best;
+        });
+
+        // Win streaks
+        const streaks = {};
+        PLAYERS.forEach(p => {
+          let max = 0, cur = 0;
+          (breakdown[p] || []).forEach(b => {
+            if (b.gained >= 2) { cur++; max = Math.max(max, cur); } else cur = 0;
+          });
+          streaks[p] = max;
+        });
+
+        // Total correct toss picks
+        const tossPicks = {};
+        PLAYERS.forEach(p => {
+          tossPicks[p] = (breakdown[p] || []).filter(b => b.parts?.some(x => x.includes("toss"))).length;
+        });
+
+        // Perfect games (got both match + toss right = 3 pts)
+        const perfectGames = {};
+        PLAYERS.forEach(p => {
+          perfectGames[p] = (breakdown[p] || []).filter(b => b.gained === 3).length;
+        });
+
+        const statRows = [
+          { icon:"🏅", label:"Total Points", values: ranked.map(p => ({ player:p, val: pts[p], best: true })) },
+          { icon:"🎯", label:"Best Single Match", values: ranked.map(p => ({ player:p, val: `+${bestMatch[p]?.gained||0} (${bestMatch[p]?.home||"—"}v${bestMatch[p]?.away||"—"})` })) },
+          { icon:"🔥", label:"Longest Win Streak", values: ranked.map(p => ({ player:p, val: `${streaks[p]} in a row` })) },
+          { icon:"🪙", label:"Toss Predictions", values: ranked.map(p => ({ player:p, val: `${tossPicks[p]} correct` })) },
+          { icon:"💎", label:"Perfect Games (3pts)", values: ranked.map(p => ({ player:p, val: perfectGames[p] })) },
+          { icon:"📊", label:"Matches Bet On", values: ranked.map(p => ({ player:p, val: breakdown[p]?.length || 0 })) },
+        ];
+
+        const narrativeLines = [
+          `🏏 IPL 2026 BetZone wrapped up across ${totalMatches} matches.`,
+          `👑 ${champion} dominated with ${pts[champion]} points to claim the season title.`,
+          `💎 ${ranked.map(p => `${PLAYER_META[p].emoji} ${p}: ${pts[p]}pts`).join("  ·  ")}`,
+          `🔥 Longest win streak: ${PLAYERS.reduce((best, p) => streaks[p] > streaks[best] ? p : best, PLAYERS[0])} with ${Math.max(...PLAYERS.map(p => streaks[p]))} in a row.`,
+          `🪙 Best toss caller: ${PLAYERS.reduce((best, p) => tossPicks[p] > tossPicks[best] ? p : best, PLAYERS[0])} with ${Math.max(...PLAYERS.map(p => tossPicks[p]))} correct picks.`,
+          `💎 Most perfect games: ${PLAYERS.reduce((best, p) => perfectGames[p] > perfectGames[best] ? p : best, PLAYERS[0])} with ${Math.max(...PLAYERS.map(p => perfectGames[p]))} perfect scores.`,
+        ];
+
+        return (
+          <div style={{ position:"fixed", inset:0, zIndex:9999, background:"#060D1A", overflowY:"auto" }}>
+            {/* Header */}
+            <div style={{ background:"linear-gradient(180deg,#0D1828 0%,#060D1A 100%)", padding:"24px 20px 16px", position:"sticky", top:0, zIndex:10, borderBottom:"1px solid #1A3050" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:12, maxWidth:560, margin:"0 auto" }}>
+                <button onClick={() => setShowHighlightReel(false)}
+                  style={{ background:"#1A3050", border:"none", borderRadius:"50%", width:36, height:36, color:"#7A90B0", fontSize:18, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>←</button>
+                <div>
+                  <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, color:"#FFD700" }}>🎬 Season Highlight Reel</div>
+                  <div style={{ fontSize:11, color:"#4A6080" }}>IPL BetZone 2026 · {totalMatches} matches</div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ maxWidth:560, margin:"0 auto", padding:"20px 16px 60px" }}>
+
+              {/* Champion banner */}
+              <div style={{ background:`linear-gradient(135deg,${champMeta.color}33,#0D1828)`, border:`1px solid ${champMeta.color}44`, borderRadius:20, padding:"20px", marginBottom:16, display:"flex", alignItems:"center", gap:16, animation:"reelSlideIn .4s ease forwards" }}>
+                <PlayerAvatarBubble meta={champMeta} size={64} border={3} borderColor="#FFD700" />
+                <div>
+                  <div style={{ fontSize:10, color:"#FFD700", fontWeight:700, letterSpacing:2, marginBottom:4 }}>🏆 SEASON CHAMPION</div>
+                  <div style={{ fontFamily:"'Syne',sans-serif", fontSize:22, fontWeight:800, color:champMeta.color }}>{champion}</div>
+                  <div style={{ fontSize:13, color:"#E2E8F8" }}>{pts[champion]} points from {breakdown[champion]?.length||0} matches</div>
+                </div>
+              </div>
+
+              {/* Narrative */}
+              <div style={{ background:"#0D1828", border:"1px solid #1A3050", borderRadius:16, padding:"16px", marginBottom:16, animation:"reelSlideIn .5s ease forwards" }}>
+                <div style={{ fontSize:11, color:"#FFD700", fontWeight:700, letterSpacing:1, marginBottom:10 }}>📖 THE STORY</div>
+                {narrativeLines.map((line, i) => (
+                  <div key={i} style={{ fontSize:12, color:"#7A90B0", lineHeight:1.7, marginBottom:4 }}>{line}</div>
+                ))}
+              </div>
+
+              {/* Head to head stats */}
+              <div style={{ background:"#0D1828", border:"1px solid #1A3050", borderRadius:16, padding:"16px", marginBottom:16, animation:"reelSlideIn .6s ease forwards" }}>
+                <div style={{ fontSize:11, color:"#FFD700", fontWeight:700, letterSpacing:1, marginBottom:12 }}>📊 SEASON STATS</div>
+                {statRows.map((row, ri) => (
+                  <div key={ri} style={{ marginBottom: ri < statRows.length-1 ? 14 : 0 }}>
+                    <div style={{ fontSize:10, color:"#4A6080", fontWeight:700, marginBottom:6 }}>{row.icon} {row.label}</div>
+                    <div style={{ display:"flex", gap:8 }}>
+                      {ranked.map((p, i) => {
+                        const meta = PLAYER_META[p];
+                        const valObj = row.values.find(v => v.player === p);
+                        const isTop = i === 0;
+                        return (
+                          <div key={p} style={{ flex:1, background: isTop ? meta.color+"22" : "#0A1420", border:`1px solid ${isTop ? meta.color+"66" : "#1A3050"}`, borderRadius:10, padding:"8px 10px", textAlign:"center" }}>
+                            <PlayerAvatarBubble meta={meta} size={28} border={1} />
+                            <div style={{ fontSize:11, fontWeight:700, color: isTop ? meta.color : "#E2E8F8", marginTop:4 }}>{valObj?.val ?? "—"}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Match by match journey */}
+              <div style={{ background:"#0D1828", border:"1px solid #1A3050", borderRadius:16, padding:"16px", animation:"reelSlideIn .7s ease forwards" }}>
+                <div style={{ fontSize:11, color:"#FFD700", fontWeight:700, letterSpacing:1, marginBottom:12 }}>🗓️ MATCH BY MATCH</div>
+                {completedMatches.slice().reverse().slice(0, 10).map((match, i) => {
+                  const winner = getEffectiveWinner(match);
+                  return (
+                    <div key={match.id} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8, padding:"8px 10px", background:"#0A1420", borderRadius:10, borderLeft:`3px solid ${match.stage === "playoff" ? "#FFD700" : "#1A3050"}` }}>
+                      <div style={{ fontSize:10, color:"#4A6080", width:50, flexShrink:0 }}>{match.date}</div>
+                      <div style={{ fontSize:11, color:"#E2E8F8", flex:1 }}>{match.home} vs {match.away}</div>
+                      <div style={{ fontSize:10, color:"#22C55E", fontWeight:700, flexShrink:0 }}>{winner || "—"}</div>
+                      <div style={{ display:"flex", gap:4, flexShrink:0 }}>
+                        {PLAYERS.map(p => {
+                          const b = (breakdown[p]||[]).find(b => b.matchId === match.id);
+                          const gained = b?.gained ?? null;
+                          return (
+                            <div key={p} style={{ width:22, height:22, borderRadius:"50%", background: gained === null ? "#1A3050" : gained >= 2 ? PLAYER_META[p].color+"44" : "#EF444422", border:`1px solid ${gained === null ? "#1A3050" : gained >= 2 ? PLAYER_META[p].color : "#EF4444"}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, fontWeight:800, color: gained === null ? "#2A4060" : gained >= 2 ? PLAYER_META[p].color : "#EF4444" }}>
+                              {gained === null ? "—" : `+${gained}`}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+                {completedMatches.length > 10 && (
+                  <div style={{ textAlign:"center", fontSize:11, color:"#4A6080", marginTop:8 }}>Showing last 10 of {completedMatches.length} matches · Full history in History tab</div>
+                )}
+              </div>
             </div>
           </div>
         );
