@@ -1646,14 +1646,21 @@ export default function App() {
       } else if (mode === "change") {
         const storedHash = pins[player];
         const ok = storedHash ? await verifyPin(pinInput, storedHash) : pinInput === DEFAULT_PIN;
-        if (!ok) { setPinError("❌ Wrong current PIN"); setPinInput(""); setPinLoading(false); return; }
+        if (!ok) { setPinError("❌ Wrong current PIN. Try again."); setPinInput(""); setPinLoading(false); return; }
         setPinScreen({ player, mode: "setNew" });
         setPinInput(""); setPinError("");
       } else if (mode === "setNew") {
+        if (pinInput.length < 4) { setPinError("PIN must be at least 4 digits"); setPinLoading(false); return; }
+        setPinScreen({ player, mode: "confirmNew", newPin: pinInput });
+        setPinInput(""); setPinError("");
+      } else if (mode === "confirmNew") {
+        if (pinInput !== pinScreen.newPin) { setPinError("❌ PINs don't match. Try again."); setPinInput(""); setPinLoading(false); return; }
         const h = await hashPin(pinInput);
         await set(ref(db, `pins/${player}`), h);
-        notify("🔐 PIN updated!");
+        saveSession(player);
+        notify("🔐 PIN updated successfully!");
         setPinScreen(null); setPinInput(""); setPinError("");
+        setScreen("app");
       }
     } catch (e) { setPinError("Error: " + e.message); }
     setPinLoading(false);
@@ -2510,8 +2517,8 @@ export default function App() {
     const { player, mode } = pinScreen;
     const meta = player ? PLAYER_META[player] : null;
     const isPick = !player || mode === "pick";
-    const title = isPick ? "Who are you?" : mode === "setNew" ? "Set new PIN" : mode === "change" ? "Enter current PIN" : `Welcome, ${player}`;
-    const subtitle = isPick ? "Select your name to continue" : mode === "setNew" ? `Choose a new PIN for ${player}` : mode === "change" ? "Verify your identity first" : `Enter your PIN (default: ${DEFAULT_PIN})`;
+    const title = isPick ? "Who are you?" : mode === "setNew" ? "Choose new PIN" : mode === "confirmNew" ? "Confirm new PIN" : mode === "change" ? "Enter current PIN" : `Welcome, ${player}`;
+    const subtitle = isPick ? "Select your name to continue" : mode === "setNew" ? `At least 4 digits` : mode === "confirmNew" ? "Enter the same PIN again" : mode === "change" ? "Enter your current PIN first" : "Enter your PIN";
     return (
       <div style={{ minHeight:"100svh", background:"#060D1A", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24, fontFamily:"'DM Sans',sans-serif" }}>
         <div style={{ fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, color:"#FFD700", marginBottom:4 }}>🏏 IPL BetZone</div>
@@ -2549,7 +2556,7 @@ export default function App() {
               {pinError && <div style={{ fontSize:12, color:"#EF4444", textAlign:"center", marginBottom:8 }}>{pinError}</div>}
               <button onClick={handlePinSubmit} disabled={pinLoading}
                 style={{ width:"100%", padding:"14px", borderRadius:12, border:"none", background:meta?.color || "#FFD700", color:"#fff", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:15, cursor:"pointer", marginBottom:10 }}>
-                {pinLoading ? "Checking..." : mode === "setNew" ? "Set PIN" : "Unlock 🔓"}
+                {pinLoading ? "..." : mode === "setNew" ? "Next →" : mode === "confirmNew" ? "Save PIN 🔐" : "Unlock 🔓"}
               </button>
               <button onClick={() => { setPinScreen({ player: null, mode: "pick" }); setPinInput(""); setPinError(""); }}
                 style={{ width:"100%", padding:"10px", borderRadius:12, border:"1px solid #1A3050", background:"transparent", color:"#4A6080", fontSize:13, cursor:"pointer" }}>
@@ -2787,18 +2794,23 @@ export default function App() {
             </div>
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 38 }}>
-            {PLAYERS.map(p => (
-              <div key={p} style={{ textAlign: "center", cursor: "pointer" }}
-                onClick={() => setAvatarPicker(p)}>
-                <div style={{ position: "relative" }}>
-                  <PlayerAvatarBubble meta={PLAYER_META[p]} size={34} border={2} />
-                  <div style={{ position: "absolute", bottom: -2, right: -2, fontSize: 8, background: "#060D1A", borderRadius: "50%", width: 12, height: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>✏️</div>
+            {PLAYERS.map(p => {
+              const isMe = p === sessionPlayer;
+              return (
+                <div key={p} style={{ textAlign: "center", cursor: isMe ? "pointer" : "default", opacity: isMe ? 1 : 0.4 }}
+                  onClick={() => isMe && setAvatarPicker(p)}>
+                  <div style={{ position: "relative" }}>
+                    <PlayerAvatarBubble meta={PLAYER_META[p]} size={34} border={2} />
+                    {isMe && (
+                      <div style={{ position: "absolute", bottom: -2, right: -2, fontSize: 8, background: "#060D1A", borderRadius: "50%", width: 12, height: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>✏️</div>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 8, color: PLAYER_META[p].color, fontWeight: 700, marginTop: 2 }}>
+                    {isMe ? "YOU" : p.toUpperCase()}
+                  </div>
                 </div>
-                <div style={{ fontSize: 8, color: PLAYER_META[p].color, fontWeight: 700, marginTop: 2 }}>
-                  {p.toUpperCase()}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
@@ -5105,7 +5117,7 @@ export default function App() {
             {/* ── PIN RESET ── */}
             <div style={{ marginTop:16, marginBottom:8 }}>
               <div style={{ fontFamily:"'Syne',sans-serif", fontSize:12, color:"#FFD700", fontWeight:800, marginBottom:8, letterSpacing:0.5 }}>🔐 RESET PLAYER PINs</div>
-              <div style={{ fontSize:10, color:"#4A6080", marginBottom:10 }}>Resets PIN back to default {DEFAULT_PIN}</div>
+              <div style={{ fontSize:10, color:"#4A6080", marginBottom:10 }}>Resets PIN back to default only. Players change their own PIN via their Profile.</div>
               <div style={{ display:"flex", gap:8 }}>
                 {PLAYERS.map(p => (
                   <button key={p} onClick={() => adminResetPin(p)}
@@ -5355,6 +5367,27 @@ export default function App() {
                   <div style={{ fontSize: 11, color: "#4A6080", marginTop: 2 }}>Pick an emoji and a ring colour.</div>
                 </div>
               </div>
+
+              {/* Change PIN — only for own profile */}
+              {p === sessionPlayer && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontFamily:"'Syne',sans-serif", fontSize:11, color:"#4A6080", fontWeight:700, letterSpacing:0.5, marginBottom:8 }}>🔐 SECURITY</div>
+                  <button onClick={() => {
+                    setAvatarPicker(null);
+                    setPinScreen({ player: p, mode: "change" });
+                    setScreen("pin");
+                    setPinInput(""); setPinError("");
+                  }}
+                    style={{ width:"100%", padding:"11px 14px", borderRadius:12, border:"1px solid #1A305066", background:"#0A1420", color:"#7A90B0", fontSize:13, cursor:"pointer", textAlign:"left", display:"flex", alignItems:"center", gap:10 }}>
+                    <span style={{ fontSize:18 }}>🔑</span>
+                    <div>
+                      <div style={{ fontWeight:700, color:"#E2E8F8", fontSize:13 }}>Change PIN</div>
+                      <div style={{ fontSize:10, color:"#4A6080", marginTop:1 }}>Update your login PIN</div>
+                    </div>
+                    <span style={{ marginLeft:"auto", color:"#4A6080" }}>›</span>
+                  </button>
+                </div>
+              )}
 
               {/* Emoji picker — categorised */}
               <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 11, color: "#4A6080", fontWeight: 700, letterSpacing: 0.5, marginBottom: 10 }}>CHOOSE EMOJI</div>
