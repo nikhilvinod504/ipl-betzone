@@ -2597,6 +2597,61 @@ export default function App() {
             style={{ width:"100%", padding:"12px", borderRadius:12, border:"1px solid #1A3050", background:"transparent", color:"#4A6080", fontSize:13, cursor:"pointer", marginTop:4 }}>
             🔒 Switch Account
           </button>
+
+          {/* Migration — accessible even before season data loads */}
+          {sessionPlayer === "Nakel" && (
+            <div style={{ marginTop:16, background:"#0D1828", border:"1px solid #FF6B2B44", borderRadius:14, padding:16 }}>
+              <div style={{ fontSize:11, color:"#FF6B2B", fontWeight:800, marginBottom:6 }}>⚠️ One-Time Data Migration</div>
+              <div style={{ fontSize:11, color:"#4A6080", marginBottom:10, lineHeight:1.5 }}>
+                Your 2026 data is safe in Firebase but needs to be moved to the new season structure. Run this once.
+              </div>
+              {!showMigration ? (
+                <button onClick={() => setShowMigration(true)}
+                  style={{ width:"100%", padding:"10px", borderRadius:10, border:"none", background:"#FF6B2B", color:"#fff", fontSize:12, fontWeight:800, cursor:"pointer" }}>
+                  🚀 Migrate 2026 Data Now
+                </button>
+              ) : (
+                <div>
+                  <div style={{ background:"#0A1420", borderRadius:8, padding:8, marginBottom:8, maxHeight:150, overflowY:"auto" }}>
+                    {migrationStatus.length === 0 ? (
+                      <div style={{ fontSize:11, color:"#4A6080" }}>Ready — will copy all data to seasons/ipl2026/</div>
+                    ) : migrationStatus.map((line,i) => (
+                      <div key={i} style={{ fontSize:10, color: line.startsWith("✅") ? "#22C55E" : line.startsWith("❌") ? "#EF4444" : "#7A90B0", marginBottom:2 }}>{line}</div>
+                    ))}
+                  </div>
+                  <button onClick={async () => {
+                    const log = (msg) => setMigrationStatus(prev => [...prev, msg]);
+                    const PATHS = ["bets","tossGuesses","manualResults","iplTable","chat","spyLog","playoffAdmin"];
+                    log("Starting migration...");
+                    for (const path of PATHS) {
+                      try {
+                        log(`📦 Reading ${path}...`);
+                        const snap = await get(ref(db, path));
+                        const data = snap.val();
+                        if (data) {
+                          await set(ref(db, `seasons/ipl2026/${path}`), data);
+                          log(`✅ ${path} migrated!`);
+                        } else {
+                          log(`⚠️ ${path} was empty — skipped`);
+                        }
+                      } catch(e) {
+                        log(`❌ ${path} failed: ${e.message}`);
+                      }
+                    }
+                    log("✅ All done! Select IPL 2026 to see your data.");
+                    notify("✅ Migration complete!");
+                  }}
+                    style={{ width:"100%", padding:"10px", borderRadius:10, border:"none", background:"#22C55E", color:"#fff", fontSize:12, fontWeight:800, cursor:"pointer", marginBottom:6 }}>
+                    ▶ Run Migration Now
+                  </button>
+                  <button onClick={() => { setShowMigration(false); setMigrationStatus([]); }}
+                    style={{ width:"100%", padding:"8px", borderRadius:10, border:"1px solid #1A3050", background:"transparent", color:"#4A6080", fontSize:11, cursor:"pointer" }}>
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     );
