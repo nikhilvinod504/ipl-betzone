@@ -18,6 +18,47 @@ const firebaseConfig = {
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getDatabase(firebaseApp);
 
+// ── Season config ────────────────────────────────────────────────────────
+const SEASONS = [
+  { id: "ipl2027", label: "IPL 2027", tag: "🔴 Current Season", current: true },
+  { id: "ipl2026", label: "IPL 2026", tag: "📦 Archive", current: false },
+];
+const CURRENT_SEASON = "ipl2027";
+
+// ── PIN helpers ──────────────────────────────────────────────────────────
+const DEFAULT_PIN = "80085";
+const SESSION_KEY = "betzone_session_v2";
+const SESSION_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+async function hashPin(pin) {
+  try {
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(pin));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,"0")).join("");
+  } catch { return pin; } // fallback for HTTP
+}
+
+async function verifyPin(pin, storedHash) {
+  const h = await hashPin(pin);
+  return h === storedHash;
+}
+
+function loadSession() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
+    if (!s || !s.player || !s.pinVerified) return null;
+    if (Date.now() - s.ts > SESSION_TTL) { localStorage.removeItem(SESSION_KEY); return null; }
+    return s;
+  } catch { return null; }
+}
+
+function saveSession(player) {
+  try { localStorage.setItem(SESSION_KEY, JSON.stringify({ player, ts: Date.now(), pinVerified: true })); } catch {}
+}
+
+function clearSession() {
+  try { localStorage.removeItem(SESSION_KEY); } catch {}
+}
+
 const CHAT_SCROLL_TOP_KEY = "betzone_chatScrollTop";
 
 /** CSS animation value when motion is OK vs reduced-motion users */
@@ -1274,6 +1315,21 @@ export default function App() {
   const [themeId, setThemeId] = useState(() => {
     try { return localStorage.getItem("betzone_theme") || "default"; } catch { return "default"; }
   });
+  // ── Season + Auth states ────────────────────────────────────────────────
+  const [screen, setScreen] = useState("pin"); // pin | seasonSelect | app
+  const [activeSeason, setActiveSeason] = useState(CURRENT_SEASON);
+  const [sessionPlayer, setSessionPlayer] = useState(null);
+  const [pinScreen, setPinScreen] = useState(null); // null | { player, mode: "login"|"change"|"pick" }
+  const [pinInput, setPinInput] = useState("");
+  const [pinError, setPinError] = useState("");
+  const [pinLoading, setPinLoading] = useState(false);
+  const [pins, setPins] = useState({});
+  const [showMigration, setShowMigration] = useState(false);
+  const [migrationStatus, setMigrationStatus] = useState([]); // log lines
+
+  const seasonPath = (path) => `seasons/${activeSeason}/${path}`;
+  const isArchive = activeSeason !== CURRENT_SEASON;
+
   const [tab, setTab] = useState("leaderboard");
   const [selectedPlayer, setSelectedPlayer] = useState(PLAYERS[0]);
   const [revealedPicks, setRevealedPicks] = useState({}); // tracks which match picks are revealed
@@ -1305,8 +1361,6 @@ export default function App() {
   const [customAvatars, setCustomAvatars] = useState({}); // avatar overrides from Firebase
   const [avatarPicker, setAvatarPicker] = useState(null); // player name whose avatar is being edited
   const [toast, setToast] = useState(null);
-  const [showSeasonPopup, setShowSeasonPopup] = useState(false);
-  const [showHighlightReel, setShowHighlightReel] = useState(false);
   const [scorecardModalMatchId, setScorecardModalMatchId] = useState(null);
   const [rankFlash, setRankFlash] = useState({});
   const prevRanksRef = useRef(null);
@@ -1381,25 +1435,26 @@ export default function App() {
   // ── Firebase listeners ────────────────────────────────────────
   useEffect(() => {
     const unsubs = [
-      onValue(ref(db, "bets"), snap => setBets(snap.val() || {})),
+      onValue(ref(db, seasonPath("bets")), snap => setBets(snap.val() || {})),
       onValue(ref(db, "avatars"), snap => setCustomAvatars(snap.val() || {})),
-      onValue(ref(db, "tossGuesses"), snap => setTossGuesses(snap.val() || {})),
-      onValue(ref(db, "manualResults"), snap => setManualResults(snap.val() || {})),
-      onValue(ref(db, "playoffAdmin"), snap => setPlayoffAdmin(snap.val() || {})),
-      onValue(ref(db, "iplTable"), snap => { if (snap.val()) setIplTable(snap.val()); }),
-      onValue(ref(db, "chat"), snap => {
+      onValue(ref(db, seasonPath("tossGuesses")), snap => setTossGuesses(snap.val() || {})),
+      onValue(ref(db, seasonPath("manualResults")), snap => setManualResults(snap.val() || {})),
+      onValue(ref(db, seasonPath("playoffAdmin")), snap => setPlayoffAdmin(snap.val() || {})),
+      onValue(ref(db, seasonPath("iplTable")), snap => { if (snap.val()) setIplTable(snap.val()); }),
+      onValue(ref(db, "pins"), snap => setPins(snap.val() || {})),
+      onValue(ref(db, seasonPath("chat")), snap => {
         const data = snap.val() || {};
         const msgs = Object.values(data).sort((a, b) => a.timestamp - b.timestamp);
         setChatMessages(msgs);
       }),
-      onValue(ref(db, "spyLog"), snap => {
+      onValue(ref(db, seasonPath("spyLog")), snap => {
         const data = snap.val() || {};
         const entries = Object.values(data).sort((a, b) => b.timestamp - a.timestamp);
         setSpyLog(entries);
       }),
     ];
     return () => unsubs.forEach(u => u());
-  }, []);
+  }, [activeSeason]); // re-subscribe when season changes
 
   // ── Loading gate (schedule merged with auto-playoffs when iplTable / manualResults update) ──
   useEffect(() => {
@@ -1504,27 +1559,25 @@ export default function App() {
     }, 200);
   }
 
-  // Auto-detect chat sender from device profile on mount
+  // Check for existing session on mount — show PIN screen if none
   useEffect(() => {
+    const session = loadSession();
+    if (session) {
+      setSessionPlayer(session.player);
+      setSelectedPlayer(session.player);
+      setChatSender(session.player);
+      setDevicePlayer(session.player);
+      setScreen("seasonSelect");
+    } else {
+      setPinScreen({ player: null, mode: "pick" });
+      setScreen("pin");
+    }
+    // Also use device detection as hint for chat sender
     const info = getPlatformInfo();
-    if (info.likelyUser) {
-      setChatSender(info.likelyUser);
+    if (info.likelyUser && !session) {
       setDevicePlayer(info.likelyUser);
     }
   }, []);
-
-  // Show season champion popup when the Final is completed
-  useEffect(() => {
-    if (loading || matches.length === 0) return;
-    const final = matches.find(m => m.id === "ipl26-po-final");
-    if (!final) return;
-    const finalStatus = getEffectiveStatus(final);
-    const finalWinner = getEffectiveWinner(final);
-    if (finalStatus === "completed" && finalWinner) {
-      const t = setTimeout(() => setShowSeasonPopup(true), 1200);
-      return () => clearTimeout(t);
-    }
-  }, [loading, matches, manualResults]);
 
   // ── Auto-lock: check every 5 mins if any match is within 30 mins ──
   useEffect(() => {
@@ -1539,7 +1592,7 @@ export default function App() {
           // Only auto-lock if no manual result exists yet
           const existing = manualResults[key];
           if (!existing || existing.status === "upcoming") {
-            update(ref(db, `manualResults/${key}`), {
+            update(ref(db, `${seasonPath("manualResults")}/${key}`), {
               status: "live",
               autoLocked: true,
               autoLockedAt: now,
@@ -1559,6 +1612,65 @@ export default function App() {
   function notify(msg, type = "success") {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3000);
+  }
+
+  // ── PIN Functions ──────────────────────────────────────────────────────
+  async function handlePinSubmit() {
+    if (!pinScreen) return;
+    const { player, mode } = pinScreen;
+    if (pinInput.length < 4 && mode !== "pick") { setPinError("PIN must be 4+ digits"); return; }
+    setPinLoading(true);
+    try {
+      if (mode === "pick") {
+        // Player selected — move to login
+        const picked = pinInput || player;
+        if (!PLAYERS.includes(picked)) { setPinError("Select a player first"); setPinLoading(false); return; }
+        setPinScreen({ player: picked, mode: "login" });
+        setPinInput(""); setPinError(""); setPinLoading(false); return;
+      } else if (mode === "login") {
+        const storedHash = pins[player];
+        let ok;
+        if (!storedHash) {
+          ok = pinInput === DEFAULT_PIN;
+          if (ok) { const h = await hashPin(DEFAULT_PIN); await set(ref(db, `pins/${player}`), h); }
+        } else {
+          ok = await verifyPin(pinInput, storedHash);
+        }
+        if (!ok) { setPinError("❌ Wrong PIN. Try again."); setPinInput(""); setPinLoading(false); return; }
+        saveSession(player);
+        setSessionPlayer(player);
+        setSelectedPlayer(player);
+        setChatSender(player);
+        setPinScreen(null); setPinInput(""); setPinError("");
+        setScreen("seasonSelect");
+      } else if (mode === "change") {
+        const storedHash = pins[player];
+        const ok = storedHash ? await verifyPin(pinInput, storedHash) : pinInput === DEFAULT_PIN;
+        if (!ok) { setPinError("❌ Wrong current PIN"); setPinInput(""); setPinLoading(false); return; }
+        setPinScreen({ player, mode: "setNew" });
+        setPinInput(""); setPinError("");
+      } else if (mode === "setNew") {
+        const h = await hashPin(pinInput);
+        await set(ref(db, `pins/${player}`), h);
+        notify("🔐 PIN updated!");
+        setPinScreen(null); setPinInput(""); setPinError("");
+      }
+    } catch (e) { setPinError("Error: " + e.message); }
+    setPinLoading(false);
+  }
+
+  function handleLock() {
+    clearSession();
+    setSessionPlayer(null);
+    setPinInput(""); setPinError("");
+    setPinScreen({ player: null, mode: "pick" });
+    setScreen("pin");
+  }
+
+  async function adminResetPin(player) {
+    const h = await hashPin(DEFAULT_PIN);
+    await set(ref(db, `pins/${player}`), h);
+    notify(`🔐 ${player}'s PIN reset to ${DEFAULT_PIN}`);
   }
 
   useEffect(() => {
@@ -1608,6 +1720,7 @@ export default function App() {
   }
 
   async function placeBet(matchId, player, team) {
+    if (isArchive) return notify("📦 Archive — bets locked", "error");
     const match = matches.find(m => m.id === matchId);
     if (!match || getEffectiveStatus(match) !== "upcoming") {
       return notify("Betting is closed for this match!", "error");
@@ -1616,11 +1729,12 @@ export default function App() {
       return notify("🔒 This playoff is not confirmed in Admin yet — betting stays locked.", "error");
     }
     const key = `${matchId}__${player}`;
-    await set(ref(db, `bets/${key}`), team);
+    await set(ref(db, `${seasonPath("bets")}/${key}`), team);
     notify(`${PLAYER_META[player].emoji} ${player} bets on ${team}!`);
   }
 
   async function placeToss(matchId, player, team) {
+    if (isArchive) return notify("📦 Archive — bets locked", "error");
     const match = matches.find(m => m.id === matchId);
     if (!match || getEffectiveStatus(match) !== "upcoming") {
       return notify("Betting is closed for this match!", "error");
@@ -1629,7 +1743,7 @@ export default function App() {
       return notify("🔒 This playoff is not confirmed in Admin yet — betting stays locked.", "error");
     }
     const key = `${matchId}__${player}`;
-    await set(ref(db, `tossGuesses/${key}`), team);
+    await set(ref(db, `${seasonPath("tossGuesses")}/${key}`), team);
     notify(`${PLAYER_META[player].emoji} ${player} picks ${team} for the toss!`);
   }
 
@@ -1640,7 +1754,7 @@ export default function App() {
     if (status)     patch.status     = status;
     if (winner)     patch.winner     = winner;
     if (tossWinner) patch.tossWinner = tossWinner;
-    await update(ref(db, `manualResults/${key}`), patch);
+    await update(ref(db, `${seasonPath("manualResults")}/${key}`), patch);
     if (status === "live" && !winner) notify("🔒 Bets locked! Match is live.");
     else if (status === "completed" && winner) notify(`🏆 ${winner} set as winner! Points updated.`);
     else if (tossWinner) notify(`🪙 Toss winner set: ${tossWinner}!`);
@@ -2007,7 +2121,7 @@ export default function App() {
       timezone: info.timezone,
       likelyUser: info.likelyUser || reminderPlayer,
     };
-    await set(ref(db, `chat/${ts}`), msg);
+    await set(ref(db, `${seasonPath("chat")}/${ts}`), msg);
     notify("⏰ Reminder posted in chat.", "info");
     setTab("chat");
   }
@@ -2124,7 +2238,7 @@ export default function App() {
       mismatch: mismatch || false,
       timestamp: ts,
     };
-    set(ref(db, `spyLog/${ts}`), entry);
+    set(ref(db, `${seasonPath("spyLog")}/${ts}`), entry);
   }
 
   // Convenience wrappers
@@ -2391,6 +2505,141 @@ export default function App() {
   }
 
   // ─────────────────────────────────────────────────────────────
+  // ── PIN Screen ────────────────────────────────────────────────────────
+  if (screen === "pin" && pinScreen) {
+    const { player, mode } = pinScreen;
+    const meta = player ? PLAYER_META[player] : null;
+    const isPick = !player || mode === "pick";
+    const title = isPick ? "Who are you?" : mode === "setNew" ? "Set new PIN" : mode === "change" ? "Enter current PIN" : `Welcome, ${player}`;
+    const subtitle = isPick ? "Select your name to continue" : mode === "setNew" ? `Choose a new PIN for ${player}` : mode === "change" ? "Verify your identity first" : `Enter your PIN (default: ${DEFAULT_PIN})`;
+    return (
+      <div style={{ minHeight:"100svh", background:"#060D1A", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24, fontFamily:"'DM Sans',sans-serif" }}>
+        <div style={{ fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, color:"#FFD700", marginBottom:4 }}>🏏 IPL BetZone</div>
+        <div style={{ fontSize:11, color:"#4A6080", marginBottom:32, letterSpacing:1 }}>SECURE LOGIN</div>
+        <div style={{ width:"100%", maxWidth:340, background:"#0D1828", borderRadius:20, padding:24, border:"1px solid #1A3050" }}>
+          <div style={{ textAlign:"center", marginBottom:20 }}>
+            {meta ? <PlayerAvatarBubble meta={meta} size={64} border={3} borderColor={meta.color} style={{ margin:"0 auto 12px" }} /> : <div style={{ fontSize:48, marginBottom:12 }}>🔐</div>}
+            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, color:"#E2E8F8" }}>{title}</div>
+            <div style={{ fontSize:12, color:"#4A6080", marginTop:4 }}>{subtitle}</div>
+          </div>
+          {isPick ? (
+            <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+              {PLAYERS.map(p => {
+                const pm = PLAYER_META[p];
+                return (
+                  <button key={p} onClick={() => { setPinScreen({ player: p, mode: "login" }); setPinError(""); }}
+                    style={{ display:"flex", alignItems:"center", gap:14, padding:"14px 16px", borderRadius:14, border:"2px solid " + pm.color + "44", background:pm.light, cursor:"pointer" }}>
+                    <PlayerAvatarBubble meta={pm} size={44} border={2} borderColor={pm.color} />
+                    <div style={{ textAlign:"left" }}>
+                      <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, color:pm.color, fontSize:16 }}>{p}</div>
+                      <div style={{ fontSize:11, color:"#4A6080" }}>Tap to continue</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div>
+              <input type="password" inputMode="numeric" value={pinInput}
+                onChange={e => { setPinInput(e.target.value.slice(0,8)); setPinError(""); }}
+                onKeyDown={e => e.key === "Enter" && handlePinSubmit()}
+                placeholder="· · · · ·" maxLength={8} autoFocus
+                style={{ width:"100%", background:"#0A1420", border:"2px solid " + (pinError ? "#EF4444" : "#1A3050"), borderRadius:12, padding:"14px", fontSize:22, color:"#E2E8F8", textAlign:"center", letterSpacing:8, outline:"none", boxSizing:"border-box", marginBottom:8 }}
+              />
+              {pinError && <div style={{ fontSize:12, color:"#EF4444", textAlign:"center", marginBottom:8 }}>{pinError}</div>}
+              <button onClick={handlePinSubmit} disabled={pinLoading}
+                style={{ width:"100%", padding:"14px", borderRadius:12, border:"none", background:meta?.color || "#FFD700", color:"#fff", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:15, cursor:"pointer", marginBottom:10 }}>
+                {pinLoading ? "Checking..." : mode === "setNew" ? "Set PIN" : "Unlock 🔓"}
+              </button>
+              <button onClick={() => { setPinScreen({ player: null, mode: "pick" }); setPinInput(""); setPinError(""); }}
+                style={{ width:"100%", padding:"10px", borderRadius:12, border:"1px solid #1A3050", background:"transparent", color:"#4A6080", fontSize:13, cursor:"pointer" }}>
+                ← Back
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Season Selector ────────────────────────────────────────────────────
+  if (screen === "seasonSelect") {
+    const meta = sessionPlayer ? PLAYER_META[sessionPlayer] : null;
+    return (
+      <div style={{ minHeight:"100svh", background:"#060D1A", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24, fontFamily:"'DM Sans',sans-serif" }}>
+        <div style={{ fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, color:"#FFD700", marginBottom:4 }}>🏏 IPL BetZone</div>
+        {meta && (
+          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:28 }}>
+            <PlayerAvatarBubble meta={meta} size={36} border={2} />
+            <div style={{ fontSize:13, color:"#7A90B0" }}>Hi <span style={{ color:meta.color, fontWeight:800 }}>{sessionPlayer}</span> — which season?</div>
+          </div>
+        )}
+        <div style={{ width:"100%", maxWidth:340 }}>
+          {SEASONS.map(s => (
+            <button key={s.id} onClick={() => { setActiveSeason(s.id); setTab("leaderboard"); setScreen("app"); }}
+              style={{ display:"flex", alignItems:"center", gap:16, width:"100%", padding:"20px", borderRadius:16, border:"2px solid " + (s.current ? "#FFD70066" : "#1A3050"), background:s.current ? "#FFD70011" : "#0D1828", cursor:"pointer", marginBottom:12, textAlign:"left" }}>
+              <div style={{ fontSize:36 }}>{s.current ? "🔴" : "📦"}</div>
+              <div style={{ flex:1 }}>
+                <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, color:s.current ? "#FFD700" : "#7A90B0", fontSize:18 }}>{s.label}</div>
+                <div style={{ fontSize:12, color:"#4A6080", marginTop:2 }}>{s.tag}</div>
+              </div>
+              <div style={{ fontSize:22, color:"#4A6080" }}>›</div>
+            </button>
+          ))}
+          <button onClick={handleLock}
+            style={{ width:"100%", padding:"12px", borderRadius:12, border:"1px solid #1A3050", background:"transparent", color:"#4A6080", fontSize:13, cursor:"pointer", marginTop:4 }}>
+            🔒 Switch Account
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── IPL 2027 Coming Soon ──────────────────────────────────────────────
+  if (screen === "app" && activeSeason === CURRENT_SEASON) {
+    const meta = sessionPlayer ? PLAYER_META[sessionPlayer] : null;
+    return (
+      <div style={{ minHeight:"100svh", background:"#060D1A", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24, fontFamily:"'DM Sans',sans-serif" }}>
+        {/* Header */}
+        <div style={{ fontFamily:"'Syne',sans-serif", fontSize:24, fontWeight:800, color:"#FFD700", marginBottom:4 }}>🏏 IPL 2027</div>
+        <div style={{ fontSize:11, color:"#4A6080", marginBottom:40, letterSpacing:1 }}>BETZONE</div>
+
+        {/* Coming soon card */}
+        <div style={{ width:"100%", maxWidth:340, background:"#0D1828", borderRadius:20, padding:28, border:"1px solid #1A3050", textAlign:"center", marginBottom:16 }}>
+          <div style={{ fontSize:56, marginBottom:16 }}>⏳</div>
+          <div style={{ fontFamily:"'Syne',sans-serif", fontSize:20, fontWeight:800, color:"#E2E8F8", marginBottom:10 }}>Coming Soon</div>
+          <div style={{ fontSize:13, color:"#4A6080", lineHeight:1.7, marginBottom:20 }}>
+            The IPL 2027 season hasn't started yet.<br/>
+            Schedule and betting will open here<br/>
+            when fixtures are announced.
+          </div>
+          {meta && (
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, padding:"10px 14px", background:"#0A1420", borderRadius:12, marginBottom:4 }}>
+              <PlayerAvatarBubble meta={meta} size={28} border={2} />
+              <div style={{ fontSize:12, color:"#7A90B0" }}>Logged in as <span style={{ color:meta.color, fontWeight:700 }}>{sessionPlayer}</span></div>
+            </div>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div style={{ width:"100%", maxWidth:340, display:"flex", flexDirection:"column", gap:10 }}>
+          <button onClick={() => { setActiveSeason("ipl2026"); setTab("leaderboard"); }}
+            style={{ padding:"14px", borderRadius:14, border:"1px solid #FFD70044", background:"#FFD70011", color:"#FFD700", fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:14, cursor:"pointer" }}>
+            📦 View IPL 2026 Archive
+          </button>
+          <button onClick={() => setScreen("seasonSelect")}
+            style={{ padding:"12px", borderRadius:14, border:"1px solid #1A3050", background:"transparent", color:"#4A6080", fontSize:13, cursor:"pointer" }}>
+            ← Back to Season Select
+          </button>
+          <button onClick={handleLock}
+            style={{ padding:"10px", borderRadius:14, border:"none", background:"transparent", color:"#2A4060", fontSize:12, cursor:"pointer" }}>
+            🔒 Switch Account
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{
       ...S.app,
@@ -2406,30 +2655,6 @@ export default function App() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Syne:wght@700;800&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        html { height: -webkit-fill-available; }
-        body { min-height: -webkit-fill-available; }
-        @keyframes confettiFall {
-          0%   { transform: translateY(-20px) rotate(0deg);   opacity: 1; }
-          100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
-        }
-        @keyframes championPop {
-          0%   { transform: scale(0.4) translateY(60px); opacity: 0; }
-          70%  { transform: scale(1.08) translateY(-8px); opacity: 1; }
-          100% { transform: scale(1) translateY(0); opacity: 1; }
-        }
-        @keyframes trophySpin {
-          0%   { transform: rotateY(0deg) scale(1); }
-          50%  { transform: rotateY(180deg) scale(1.2); }
-          100% { transform: rotateY(360deg) scale(1); }
-        }
-        @keyframes shimmer {
-          0%   { background-position: -200% center; }
-          100% { background-position: 200% center; }
-        }
-        @keyframes reelSlideIn {
-          0%   { transform: translateX(60px); opacity: 0; }
-          100% { transform: translateX(0); opacity: 1; }
-        }
         html { height: -webkit-fill-available; }
         body { min-height: -webkit-fill-available; }
         button:hover { opacity: 0.88; }
@@ -2610,6 +2835,17 @@ export default function App() {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Archive Banner */}
+      {isArchive && (
+        <div style={{ background:"#1A1A2E", borderBottom:"2px solid #FFD70033", padding:"7px 16px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <div style={{ fontSize:11, color:"#FFD700", fontWeight:700 }}>📦 {SEASONS.find(s=>s.id===activeSeason)?.label} Archive — Read Only</div>
+          <button onClick={() => setScreen("seasonSelect")}
+            style={{ fontSize:11, color:"#7A90B0", background:"transparent", border:"1px solid #1A3050", borderRadius:8, padding:"4px 10px", cursor:"pointer" }}>
+            ← Seasons
+          </button>
         </div>
       )}
 
@@ -3938,7 +4174,7 @@ export default function App() {
 
                                 {/* Clear log button — admin only */}
                 {adminMode && (
-                  <button onClick={() => set(ref(db,"spyLog"), null)}
+                  <button onClick={() => set(ref(db, seasonPath("spyLog")), null)}
                     style={{ width:"100%", padding:"10px", borderRadius:10, border:"1px solid #7F1D1D55", background:"transparent", color:"#EF444488", fontSize:11, cursor:"pointer", marginTop:8 }}>
                     🗑️ Clear spy log (Admin only)
                   </button>
@@ -4064,7 +4300,7 @@ export default function App() {
               msg.replyToSender = replyTo.sender;
               msg.replyToText = replyTo.text.length > 60 ? replyTo.text.slice(0, 60) + "…" : replyTo.text;
             }
-            set(ref(db, `chat/${ts}`), msg);
+            set(ref(db, `${seasonPath("chat")}/${ts}`), msg);
             setChatInput("");
             setReplyTo(null);
             const now2 = Date.now();
@@ -4079,7 +4315,7 @@ export default function App() {
           }
 
           function deleteMessage(msgId) {
-            set(ref(db, `chat/${msgId}`), null);
+            set(ref(db, `${seasonPath("chat")}/${msgId}`), null);
           }
 
           function addReaction(msgId, emoji) {
@@ -4401,7 +4637,7 @@ export default function App() {
                               value={homeSel}
                               onChange={e => {
                                 const v = e.target.value;
-                                update(ref(db, `playoffAdmin/${rowKey}`), { home: v === "__AUTO__" ? null : v });
+                                update(ref(db, `${seasonPath("playoffAdmin")}/${rowKey}`), { home: v === "__AUTO__" ? null : v });
                               }}
                               style={{ width: "100%", padding: 8, borderRadius: 8, border: "1px solid #1A3050", background: "#0A1420", color: "#E2E8F8", fontSize: 12, boxSizing: "border-box" }}
                             >
@@ -4417,7 +4653,7 @@ export default function App() {
                               value={awaySel}
                               onChange={e => {
                                 const v = e.target.value;
-                                update(ref(db, `playoffAdmin/${rowKey}`), { away: v === "__AUTO__" ? null : v });
+                                update(ref(db, `${seasonPath("playoffAdmin")}/${rowKey}`), { away: v === "__AUTO__" ? null : v });
                               }}
                               style={{ width: "100%", padding: 8, borderRadius: 8, border: "1px solid #1A3050", background: "#0A1420", color: "#E2E8F8", fontSize: 12, boxSizing: "border-box" }}
                             >
@@ -4438,7 +4674,7 @@ export default function App() {
                             placeholder={defVenue}
                             onBlur={e => {
                               const v = e.target.value.trim();
-                              update(ref(db, `playoffAdmin/${rowKey}`), { venue: !v || v === defVenue ? null : v });
+                              update(ref(db, `${seasonPath("playoffAdmin")}/${rowKey}`), { venue: !v || v === defVenue ? null : v });
                             }}
                             style={{ width: "100%", padding: 8, borderRadius: 8, border: "1px solid #1A3050", background: "#0A1420", color: "#E2E8F8", fontSize: 12, boxSizing: "border-box" }}
                           />
@@ -4454,11 +4690,11 @@ export default function App() {
                             onBlur={e => {
                               const v = e.target.value;
                               if (!v || v === defLocal) {
-                                update(ref(db, `playoffAdmin/${rowKey}`), { rawDate: null });
+                                update(ref(db, `${seasonPath("playoffAdmin")}/${rowKey}`), { rawDate: null });
                                 return;
                               }
                               const iso = datetimeLocalToIso(v);
-                              update(ref(db, `playoffAdmin/${rowKey}`), { rawDate: iso || null });
+                              update(ref(db, `${seasonPath("playoffAdmin")}/${rowKey}`), { rawDate: iso || null });
                             }}
                             style={{ width: "100%", padding: 8, borderRadius: 8, border: "1px solid #1A3050", background: "#0A1420", color: "#E2E8F8", fontSize: 12, boxSizing: "border-box" }}
                           />
@@ -4488,7 +4724,7 @@ export default function App() {
                           ) : (
                             <button
                               type="button"
-                              onClick={() => update(ref(db, `playoffAdmin/${rowKey}`), { confirmed: false })}
+                              onClick={() => update(ref(db, `${seasonPath("playoffAdmin")}/${rowKey}`), { confirmed: false })}
                               style={{ width: "100%", padding: "10px", borderRadius: 10, border: "1px solid #F59E0B55", background: "#42200622", color: "#FBBF24", fontWeight: 800, fontSize: 12, cursor: "pointer" }}
                             >
                               🔒 Revoke confirmation — lock betting for edits
@@ -4496,7 +4732,7 @@ export default function App() {
                           )}
                           <button
                             type="button"
-                            onClick={() => update(ref(db, `playoffAdmin/${rowKey}`), { home: null, away: null, venue: null, rawDate: null })}
+                            onClick={() => update(ref(db, `${seasonPath("playoffAdmin")}/${rowKey}`), { home: null, away: null, venue: null, rawDate: null })}
                             style={{ width: "100%", padding: "7px", borderRadius: 8, border: "1px solid #1A3050", background: "transparent", color: "#4A6080", fontSize: 11, cursor: "pointer" }}
                           >
                             ↩ Clear overrides (revert to table + schedule)
@@ -4557,7 +4793,7 @@ export default function App() {
                           value={manual.espnEventId ?? ""}
                           onChange={e => {
                             const v = e.target.value.replace(/\D/g, "");
-                            update(ref(db, `manualResults/${fbKey(match.id)}`), { espnEventId: v || null });
+                            update(ref(db, `${seasonPath("manualResults")}/${fbKey(match.id)}`), { espnEventId: v || null });
                           }}
                           style={{
                             width: "100%",
@@ -4623,7 +4859,7 @@ export default function App() {
                                 <span>🔴 Manually locked · Set winner below when done</span>
                               )}
                             </div>
-                            <button onClick={() => update(ref(db, `manualResults/${fbKey(match.id)}`), {
+                            <button onClick={() => update(ref(db, `${seasonPath("manualResults")}/${fbKey(match.id)}`), {
                                 status: "upcoming",
                                 autoLocked: false,
                               })}
@@ -4661,11 +4897,11 @@ export default function App() {
                       <div style={{ marginBottom: 8 }}>
                         <div style={{ fontSize: 9, color: "#4A6080", marginBottom: 6, fontWeight: 700, letterSpacing: 0.3 }}>🌧️ MATCH ABANDONED / WASHOUT:</div>
                         <div style={{ display: "flex", gap: 8 }}>
-                          <button onClick={() => update(ref(db, `manualResults/${fbKey(match.id)}`), { status: "abandoned", abandonedWithToss: false })}
+                          <button onClick={() => update(ref(db, `${seasonPath("manualResults")}/${fbKey(match.id)}`), { status: "abandoned", abandonedWithToss: false })}
                             style={{ flex: 1, padding: "8px", borderRadius: 8, border: "1px solid #60A5FA55", background: "#60A5FA11", color: "#60A5FA", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
                             🌧️ Wash Before Toss<br/><span style={{ fontSize: 9, fontWeight: 400, color: "#4A6080" }}>+1 everyone</span>
                           </button>
-                          <button onClick={() => update(ref(db, `manualResults/${fbKey(match.id)}`), { status: "abandoned", abandonedWithToss: true, tossWinner: manual.tossWinner || null })}
+                          <button onClick={() => update(ref(db, `${seasonPath("manualResults")}/${fbKey(match.id)}`), { status: "abandoned", abandonedWithToss: true, tossWinner: manual.tossWinner || null })}
                             style={{ flex: 1, padding: "8px", borderRadius: 8, border: "1px solid #60A5FA55", background: "#60A5FA11", color: "#60A5FA", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
                             🌧️ Wash After Toss<br/><span style={{ fontSize: 9, fontWeight: 400, color: "#4A6080" }}>set toss winner below</span>
                           </button>
@@ -4680,7 +4916,7 @@ export default function App() {
                     )}
 
                     {(manual.winner || manual.status === "live" || manual.status === "abandoned") && (
-                      <button onClick={() => set(ref(db, `manualResults/${fbKey(match.id)}`), null)}
+                      <button onClick={() => set(ref(db, `${seasonPath("manualResults")}/${fbKey(match.id)}`), null)}
                         style={{ width: "100%", padding: "7px", borderRadius: 8, border: "1px solid #7F1D1D55", background: "transparent", color: "#EF444488", fontSize: 11, cursor: "pointer" }}>
                         ↩ Reset this match
                       </button>
@@ -4776,7 +5012,7 @@ export default function App() {
                   };
                 });
                 setIplTable(updated);
-                set(ref(db, "iplTable"), updated);
+                set(ref(db, seasonPath("iplTable")), updated);
                 notify("✅ Standings auto-calculated from match results!");
               };
 
@@ -4789,7 +5025,7 @@ export default function App() {
                     return nrr != null ? { ...row, nrr } : row;
                   });
                   setIplTable(updated);
-                  await set(ref(db, "iplTable"), updated);
+                  await set(ref(db, seasonPath("iplTable")), updated);
                   notify(`✅ NRR updated from Wikipedia (${year} IPL points table)`, "success");
                 } catch (e) {
                   notify(e?.message || "NRR fetch failed — edit manually.", "error");
@@ -4850,7 +5086,7 @@ export default function App() {
                             onChange={e => {
                               const updated = iplTable.map((r,j) => j===i ? {...r, nrr: e.target.value} : r);
                               setIplTable(updated);
-                              set(ref(db,"iplTable"), updated);
+                              set(ref(db, seasonPath("iplTable")), updated);
                             }}
                             placeholder="+0.000"
                             style={{width:"100%",background:"#0A1420",border:"1px solid #FFD70044",borderRadius:6,color:"#FFD700",fontSize:11,padding:"4px",textAlign:"center"}}
@@ -4866,6 +5102,74 @@ export default function App() {
                 </div>
               );
             })()}
+            {/* ── PIN RESET ── */}
+            <div style={{ marginTop:16, marginBottom:8 }}>
+              <div style={{ fontFamily:"'Syne',sans-serif", fontSize:12, color:"#FFD700", fontWeight:800, marginBottom:8, letterSpacing:0.5 }}>🔐 RESET PLAYER PINs</div>
+              <div style={{ fontSize:10, color:"#4A6080", marginBottom:10 }}>Resets PIN back to default {DEFAULT_PIN}</div>
+              <div style={{ display:"flex", gap:8 }}>
+                {PLAYERS.map(p => (
+                  <button key={p} onClick={() => adminResetPin(p)}
+                    style={{ flex:1, padding:"9px", borderRadius:10, border:"1px solid " + PLAYER_META[p].color + "44", background:PLAYER_META[p].light, color:PLAYER_META[p].color, fontSize:11, fontWeight:700, cursor:"pointer" }}>
+                    {PLAYER_META[p].emoji} {p}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* ── DATA MIGRATION ── */}
+            <div style={{ marginTop:8, marginBottom:8 }}>
+              <div style={{ fontFamily:"'Syne',sans-serif", fontSize:12, color:"#FF6B2B", fontWeight:800, marginBottom:8, letterSpacing:0.5 }}>⚠️ MIGRATE 2026 DATA</div>
+              <div style={{ fontSize:10, color:"#4A6080", marginBottom:10, lineHeight:1.5 }}>
+                One-time migration — moves all flat Firebase data (bets, results, chat etc.) into seasons/ipl2026/. Run once after the season ends. Cannot be undone.
+              </div>
+              {!showMigration ? (
+                <button onClick={() => setShowMigration(true)}
+                  style={{ width:"100%", padding:"10px", borderRadius:10, border:"1px solid #FF6B2B44", background:"#FF6B2B11", color:"#FF6B2B", fontSize:12, fontWeight:700, cursor:"pointer" }}>
+                  🚀 Run 2026 Migration
+                </button>
+              ) : (
+                <div>
+                  <div style={{ background:"#0A1420", borderRadius:10, padding:10, marginBottom:8, maxHeight:120, overflowY:"auto" }}>
+                    {migrationStatus.length === 0 ? (
+                      <div style={{ fontSize:11, color:"#4A6080" }}>Ready to migrate. This will copy all existing flat data to seasons/ipl2026/</div>
+                    ) : migrationStatus.map((line,i) => (
+                      <div key={i} style={{ fontSize:10, color: line.startsWith("✅") ? "#22C55E" : line.startsWith("❌") ? "#EF4444" : "#7A90B0", marginBottom:2 }}>{line}</div>
+                    ))}
+                  </div>
+                  <button onClick={async () => {
+                    const log = (msg) => setMigrationStatus(prev => [...prev, msg]);
+                    const PATHS = ["bets","tossGuesses","manualResults","iplTable","chat","spyLog","playoffAdmin"];
+                    log("Starting migration...");
+                    for (const path of PATHS) {
+                      try {
+                        log(`📦 Reading ${path}...`);
+                        const snap = await get(ref(db, path));
+                        const data = snap.val();
+                        if (data) {
+                          await set(ref(db, `seasons/ipl2026/${path}`), data);
+                          log(`✅ ${path} → seasons/ipl2026/${path}`);
+                        } else {
+                          log(`⚠️ ${path} was empty — skipped`);
+                        }
+                      } catch(e) {
+                        log(`❌ ${path} failed: ${e.message}`);
+                      }
+                    }
+                    log("✅ Migration complete! Old flat paths preserved for safety.");
+                    log("ℹ️ You can manually delete flat paths in Firebase Console.");
+                    notify("✅ Migration complete!");
+                  }}
+                    style={{ width:"100%", padding:"10px", borderRadius:10, border:"none", background:"#FF6B2B", color:"#fff", fontSize:12, fontWeight:800, cursor:"pointer", marginBottom:8 }}>
+                    ▶ Run Migration Now
+                  </button>
+                  <button onClick={() => { setShowMigration(false); setMigrationStatus([]); }}
+                    style={{ width:"100%", padding:"8px", borderRadius:10, border:"1px solid #1A3050", background:"transparent", color:"#4A6080", fontSize:11, cursor:"pointer" }}>
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+
             <button onClick={() => { setAdminMode(false); setTab("leaderboard"); }}
               style={{ ...S.btn("#1A3050", "#7A90B0"), width: "100%", marginTop: 8 }}>
               ← Exit Admin
@@ -4982,253 +5286,6 @@ export default function App() {
                   )}
                 </div>
               )}
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* ── SEASON CHAMPION POPUP ── */}
-      {showSeasonPopup && (() => {
-        const final = matches.find(m => m.id === "ipl26-po-final");
-        const iplChampion = getEffectiveWinner(final);
-        const { pts, breakdown } = calcPoints();
-        const ranked = [...PLAYERS].sort((a, b) => pts[b] - pts[a]);
-        const champion = ranked[0];
-        const champMeta = PLAYER_META[champion];
-        const medals = ["🥇","🥈","🥉"];
-        const confettiColors = ["#FFD700","#FF6B2B","#22C55E","#60A5FA","#F472B6","#A78BFA"];
-        const confettiCount = 40;
-
-        return (
-          <div style={{ position:"fixed", inset:0, zIndex:9999, display:"flex", alignItems:"flex-end", justifyContent:"center" }}
-            onClick={() => setShowSeasonPopup(false)}>
-
-            {/* Confetti */}
-            {Array.from({ length: confettiCount }).map((_, i) => (
-              <div key={i} style={{
-                position:"fixed",
-                left: `${Math.random() * 100}%`,
-                top: `-${Math.random() * 20}px`,
-                width: `${6 + Math.random() * 8}px`,
-                height: `${10 + Math.random() * 10}px`,
-                borderRadius: Math.random() > 0.5 ? "50%" : "2px",
-                background: confettiColors[i % confettiColors.length],
-                animation: `confettiFall ${2 + Math.random() * 3}s ease-in ${Math.random() * 2}s forwards`,
-                pointerEvents: "none", zIndex: 9998,
-              }} />
-            ))}
-
-            {/* Backdrop */}
-            <div style={{ position:"absolute", inset:0, background:"#000000EE" }} />
-
-            {/* Card */}
-            <div style={{ position:"relative", width:"100%", maxWidth:440, background:"linear-gradient(160deg,#0D1828 0%,#1A1A2E 100%)", borderRadius:"28px 28px 0 0", padding:"32px 24px 40px", animation:"championPop .6s cubic-bezier(.22,1,.36,1) forwards", zIndex:9999 }}
-              onClick={e => e.stopPropagation()}>
-
-              {/* Close */}
-              <button onClick={() => setShowSeasonPopup(false)}
-                style={{ position:"absolute", top:16, right:16, background:"#1A3050", border:"none", borderRadius:"50%", width:32, height:32, color:"#7A90B0", fontSize:16, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
-
-              {/* Trophy */}
-              <div style={{ textAlign:"center", marginBottom:8 }}>
-                <div style={{ fontSize:64, animation:"trophySpin 3s ease-in-out infinite", display:"inline-block" }}>🏆</div>
-              </div>
-
-              {/* Title */}
-              <div style={{ textAlign:"center", marginBottom:4 }}>
-                <div style={{ fontFamily:"'Syne',sans-serif", fontSize:11, fontWeight:700, color:"#FFD700", letterSpacing:3, marginBottom:6 }}>IPL BETZONE 2026</div>
-                <div style={{ fontFamily:"'Syne',sans-serif", fontSize:28, fontWeight:800, background:"linear-gradient(90deg,#FFD700,#FF6B2B,#FFD700)", backgroundSize:"200%", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", animation:"shimmer 2s linear infinite" }}>
-                  SEASON CHAMPION
-                </div>
-              </div>
-
-              {/* Champion avatar */}
-              <div style={{ display:"flex", flexDirection:"column", alignItems:"center", margin:"20px 0 24px" }}>
-                <PlayerAvatarBubble meta={champMeta} size={96} border={3} borderColor="#FFD700" />
-                <div style={{ fontFamily:"'Syne',sans-serif", fontSize:26, fontWeight:800, color:champMeta.color, marginTop:12 }}>{champion}</div>
-                <div style={{ fontSize:13, color:"#FFD700", fontWeight:700, marginTop:4 }}>
-                  {pts[champion]} pts · IPL Champion was {iplChampion}
-                </div>
-              </div>
-
-              {/* Final standings */}
-              <div style={{ background:"#0A1420", borderRadius:16, padding:"12px 16px", marginBottom:20 }}>
-                <div style={{ fontSize:10, color:"#4A6080", fontWeight:700, letterSpacing:1, marginBottom:10 }}>FINAL STANDINGS</div>
-                {ranked.map((p, i) => {
-                  const meta = PLAYER_META[p];
-                  return (
-                    <div key={p} style={{ display:"flex", alignItems:"center", gap:12, marginBottom: i < 2 ? 10 : 0 }}>
-                      <div style={{ fontSize:22, width:28, textAlign:"center" }}>{medals[i]}</div>
-                      <PlayerAvatarBubble meta={meta} size={36} border={2} />
-                      <div style={{ flex:1 }}>
-                        <div style={{ fontSize:13, fontWeight:800, color:meta.color }}>{p}</div>
-                        <div style={{ fontSize:10, color:"#4A6080" }}>{breakdown[p]?.length || 0} matches bet</div>
-                      </div>
-                      <div style={{ fontFamily:"'Syne',sans-serif", fontSize:20, fontWeight:800, color: i === 0 ? "#FFD700" : i === 1 ? "#C0C0C0" : "#CD7F32" }}>
-                        {pts[p]}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Highlight Reel button */}
-              <button onClick={() => { setShowSeasonPopup(false); setShowHighlightReel(true); }}
-                style={{ width:"100%", padding:"14px", borderRadius:14, border:"none", background:`linear-gradient(135deg,${champMeta.color},${champMeta.color}99)`, color:"#fff", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:15, cursor:"pointer", marginBottom:10 }}>
-                🎬 View Season Highlight Reel
-              </button>
-              <button onClick={() => setShowSeasonPopup(false)}
-                style={{ width:"100%", padding:"11px", borderRadius:14, border:"1px solid #1A3050", background:"transparent", color:"#4A6080", fontSize:13, cursor:"pointer" }}>
-                Close
-              </button>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* ── SEASON HIGHLIGHT REEL ── */}
-      {showHighlightReel && (() => {
-        const { pts, breakdown } = calcPoints();
-        const ranked = [...PLAYERS].sort((a, b) => pts[b] - pts[a]);
-        const champion = ranked[0];
-        const champMeta = PLAYER_META[champion];
-
-        // Stats for the reel
-        const totalMatches = completedMatches.length;
-        const totalBets = PLAYERS.reduce((sum, p) => sum + (breakdown[p]?.length || 0), 0);
-
-        // Best match per player (most pts in one game)
-        const bestMatch = {};
-        PLAYERS.forEach(p => {
-          const best = (breakdown[p] || []).reduce((max, b) => b.gained > (max?.gained || 0) ? b : max, null);
-          bestMatch[p] = best;
-        });
-
-        // Win streaks
-        const streaks = {};
-        PLAYERS.forEach(p => {
-          let max = 0, cur = 0;
-          (breakdown[p] || []).forEach(b => {
-            if (b.gained >= 2) { cur++; max = Math.max(max, cur); } else cur = 0;
-          });
-          streaks[p] = max;
-        });
-
-        // Total correct toss picks
-        const tossPicks = {};
-        PLAYERS.forEach(p => {
-          tossPicks[p] = (breakdown[p] || []).filter(b => b.parts?.some(x => x.includes("toss"))).length;
-        });
-
-        // Perfect games (got both match + toss right = 3 pts)
-        const perfectGames = {};
-        PLAYERS.forEach(p => {
-          perfectGames[p] = (breakdown[p] || []).filter(b => b.gained === 3).length;
-        });
-
-        const statRows = [
-          { icon:"🏅", label:"Total Points", values: ranked.map(p => ({ player:p, val: pts[p], best: true })) },
-          { icon:"🎯", label:"Best Single Match", values: ranked.map(p => ({ player:p, val: `+${bestMatch[p]?.gained||0} (${bestMatch[p]?.home||"—"}v${bestMatch[p]?.away||"—"})` })) },
-          { icon:"🔥", label:"Longest Win Streak", values: ranked.map(p => ({ player:p, val: `${streaks[p]} in a row` })) },
-          { icon:"🪙", label:"Toss Predictions", values: ranked.map(p => ({ player:p, val: `${tossPicks[p]} correct` })) },
-          { icon:"💎", label:"Perfect Games (3pts)", values: ranked.map(p => ({ player:p, val: perfectGames[p] })) },
-          { icon:"📊", label:"Matches Bet On", values: ranked.map(p => ({ player:p, val: breakdown[p]?.length || 0 })) },
-        ];
-
-        const narrativeLines = [
-          `🏏 IPL 2026 BetZone wrapped up across ${totalMatches} matches.`,
-          `👑 ${champion} dominated with ${pts[champion]} points to claim the season title.`,
-          `💎 ${ranked.map(p => `${PLAYER_META[p].emoji} ${p}: ${pts[p]}pts`).join("  ·  ")}`,
-          `🔥 Longest win streak: ${PLAYERS.reduce((best, p) => streaks[p] > streaks[best] ? p : best, PLAYERS[0])} with ${Math.max(...PLAYERS.map(p => streaks[p]))} in a row.`,
-          `🪙 Best toss caller: ${PLAYERS.reduce((best, p) => tossPicks[p] > tossPicks[best] ? p : best, PLAYERS[0])} with ${Math.max(...PLAYERS.map(p => tossPicks[p]))} correct picks.`,
-          `💎 Most perfect games: ${PLAYERS.reduce((best, p) => perfectGames[p] > perfectGames[best] ? p : best, PLAYERS[0])} with ${Math.max(...PLAYERS.map(p => perfectGames[p]))} perfect scores.`,
-        ];
-
-        return (
-          <div style={{ position:"fixed", inset:0, zIndex:9999, background:"#060D1A", overflowY:"auto" }}>
-            {/* Header */}
-            <div style={{ background:"linear-gradient(180deg,#0D1828 0%,#060D1A 100%)", padding:"24px 20px 16px", position:"sticky", top:0, zIndex:10, borderBottom:"1px solid #1A3050" }}>
-              <div style={{ display:"flex", alignItems:"center", gap:12, maxWidth:560, margin:"0 auto" }}>
-                <button onClick={() => setShowHighlightReel(false)}
-                  style={{ background:"#1A3050", border:"none", borderRadius:"50%", width:36, height:36, color:"#7A90B0", fontSize:18, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>←</button>
-                <div>
-                  <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, color:"#FFD700" }}>🎬 Season Highlight Reel</div>
-                  <div style={{ fontSize:11, color:"#4A6080" }}>IPL BetZone 2026 · {totalMatches} matches</div>
-                </div>
-              </div>
-            </div>
-
-            <div style={{ maxWidth:560, margin:"0 auto", padding:"20px 16px 60px" }}>
-
-              {/* Champion banner */}
-              <div style={{ background:`linear-gradient(135deg,${champMeta.color}33,#0D1828)`, border:`1px solid ${champMeta.color}44`, borderRadius:20, padding:"20px", marginBottom:16, display:"flex", alignItems:"center", gap:16, animation:"reelSlideIn .4s ease forwards" }}>
-                <PlayerAvatarBubble meta={champMeta} size={64} border={3} borderColor="#FFD700" />
-                <div>
-                  <div style={{ fontSize:10, color:"#FFD700", fontWeight:700, letterSpacing:2, marginBottom:4 }}>🏆 SEASON CHAMPION</div>
-                  <div style={{ fontFamily:"'Syne',sans-serif", fontSize:22, fontWeight:800, color:champMeta.color }}>{champion}</div>
-                  <div style={{ fontSize:13, color:"#E2E8F8" }}>{pts[champion]} points from {breakdown[champion]?.length||0} matches</div>
-                </div>
-              </div>
-
-              {/* Narrative */}
-              <div style={{ background:"#0D1828", border:"1px solid #1A3050", borderRadius:16, padding:"16px", marginBottom:16, animation:"reelSlideIn .5s ease forwards" }}>
-                <div style={{ fontSize:11, color:"#FFD700", fontWeight:700, letterSpacing:1, marginBottom:10 }}>📖 THE STORY</div>
-                {narrativeLines.map((line, i) => (
-                  <div key={i} style={{ fontSize:12, color:"#7A90B0", lineHeight:1.7, marginBottom:4 }}>{line}</div>
-                ))}
-              </div>
-
-              {/* Head to head stats */}
-              <div style={{ background:"#0D1828", border:"1px solid #1A3050", borderRadius:16, padding:"16px", marginBottom:16, animation:"reelSlideIn .6s ease forwards" }}>
-                <div style={{ fontSize:11, color:"#FFD700", fontWeight:700, letterSpacing:1, marginBottom:12 }}>📊 SEASON STATS</div>
-                {statRows.map((row, ri) => (
-                  <div key={ri} style={{ marginBottom: ri < statRows.length-1 ? 14 : 0 }}>
-                    <div style={{ fontSize:10, color:"#4A6080", fontWeight:700, marginBottom:6 }}>{row.icon} {row.label}</div>
-                    <div style={{ display:"flex", gap:8 }}>
-                      {ranked.map((p, i) => {
-                        const meta = PLAYER_META[p];
-                        const valObj = row.values.find(v => v.player === p);
-                        const isTop = i === 0;
-                        return (
-                          <div key={p} style={{ flex:1, background: isTop ? meta.color+"22" : "#0A1420", border:`1px solid ${isTop ? meta.color+"66" : "#1A3050"}`, borderRadius:10, padding:"8px 10px", textAlign:"center" }}>
-                            <PlayerAvatarBubble meta={meta} size={28} border={1} />
-                            <div style={{ fontSize:11, fontWeight:700, color: isTop ? meta.color : "#E2E8F8", marginTop:4 }}>{valObj?.val ?? "—"}</div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Match by match journey */}
-              <div style={{ background:"#0D1828", border:"1px solid #1A3050", borderRadius:16, padding:"16px", animation:"reelSlideIn .7s ease forwards" }}>
-                <div style={{ fontSize:11, color:"#FFD700", fontWeight:700, letterSpacing:1, marginBottom:12 }}>🗓️ MATCH BY MATCH</div>
-                {completedMatches.slice().reverse().slice(0, 10).map((match, i) => {
-                  const winner = getEffectiveWinner(match);
-                  return (
-                    <div key={match.id} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8, padding:"8px 10px", background:"#0A1420", borderRadius:10, borderLeft:`3px solid ${match.stage === "playoff" ? "#FFD700" : "#1A3050"}` }}>
-                      <div style={{ fontSize:10, color:"#4A6080", width:50, flexShrink:0 }}>{match.date}</div>
-                      <div style={{ fontSize:11, color:"#E2E8F8", flex:1 }}>{match.home} vs {match.away}</div>
-                      <div style={{ fontSize:10, color:"#22C55E", fontWeight:700, flexShrink:0 }}>{winner || "—"}</div>
-                      <div style={{ display:"flex", gap:4, flexShrink:0 }}>
-                        {PLAYERS.map(p => {
-                          const b = (breakdown[p]||[]).find(b => b.matchId === match.id);
-                          const gained = b?.gained ?? null;
-                          return (
-                            <div key={p} style={{ width:22, height:22, borderRadius:"50%", background: gained === null ? "#1A3050" : gained >= 2 ? PLAYER_META[p].color+"44" : "#EF444422", border:`1px solid ${gained === null ? "#1A3050" : gained >= 2 ? PLAYER_META[p].color : "#EF4444"}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, fontWeight:800, color: gained === null ? "#2A4060" : gained >= 2 ? PLAYER_META[p].color : "#EF4444" }}>
-                              {gained === null ? "—" : `+${gained}`}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
-                {completedMatches.length > 10 && (
-                  <div style={{ textAlign:"center", fontSize:11, color:"#4A6080", marginTop:8 }}>Showing last 10 of {completedMatches.length} matches · Full history in History tab</div>
-                )}
-              </div>
             </div>
           </div>
         );
